@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cvc.dev/schemas/dsl/v1.0.0/schema.json",
+  "title": "BlenderDsl",
+  "description": "Versioned, strictly typed Blender scene description language.",
+  "type": "object",
+  "required": ["dsl_version", "scene"],
+  "additionalProperties": false,
+  "properties": {
+    "dsl_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "scene": { "$ref": "#/$defs/Scene" }
+  },
+  "$defs": {
+    "Vec3": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "Transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "position": { "$ref": "#/$defs/Vec3" },
+        "rotation_euler": { "$ref": "#/$defs/Vec3" },
+        "scale": { "$ref": "#/$defs/Vec3" }
+      }
+    },
+    "Camera": {
+      "type": "object",
+      "required": ["focal_mm", "position"],
+      "additionalProperties": false,
+      "properties": {
+        "focal_mm": { "type": "number", "minimum": 1, "maximum": 1000 },
+        "sensor_mm": { "type": "number", "default": 36.0 },
+        "position": { "$ref": "#/$defs/Vec3" },
+        "look_at": { "oneOf": [{ "$ref": "#/$defs/Vec3" }, { "type": "null" }] },
+        "rotation_euler": { "oneOf": [{ "$ref": "#/$defs/Vec3" }, { "type": "null" }] },
+        "f_stop": { "type": "number", "exclusiveMinimum": 0, "default": 2.8 },
+        "clip_start": { "type": "number", "exclusiveMinimum": 0, "default": 0.01 },
+        "clip_end": { "type": "number", "exclusiveMinimum": 0, "default": 1000.0 }
+      }
+    },
+    "Light": {
+      "type": "object",
+      "required": ["kind", "position", "intensity", "color_kelvin"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["key", "fill", "rim", "ambient"] },
+        "position": { "$ref": "#/$defs/Vec3" },
+        "intensity": { "type": "number", "minimum": 0, "maximum": 10000 },
+        "color_kelvin": { "type": "integer", "minimum": 1000, "maximum": 20000 }
+      }
+    },
+    "PlaneCard": {
+      "type": "object",
+      "required": ["kind", "asset_id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "const": "plane_card" },
+        "asset_id": { "type": "string" },
+        "transform": { "$ref": "#/$defs/Transform" },
+        "use_depth_map": { "type": "boolean", "default": false }
+      }
+    },
+    "Mesh": {
+      "type": "object",
+      "required": ["kind", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "const": "mesh" },
+        "name": { "type": "string" },
+        "transform": { "$ref": "#/$defs/Transform" },
+        "mesh_ref": { "oneOf": [{ "type": "string" }, { "type": "null" }] }
+      }
+    },
+    "SceneObject": {
+      "oneOf": [
+        { "$ref": "#/$defs/PlaneCard" },
+        { "$ref": "#/$defs/Mesh" }
+      ]
+    },
+    "AnimationTrack": {
+      "type": "object",
+      "required": ["target_path", "times", "values"],
+      "additionalProperties": false,
+      "properties": {
+        "target_path": { "type": "string" },
+        "times": { "type": "array", "items": { "type": "number" } },
+        "values": { "type": "array" },
+        "interp": { "type": "string", "enum": ["linear", "bezier", "step"], "default": "linear" }
+      }
+    },
+    "WorldEnv": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background_color": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "hdri_ref": { "oneOf": [{ "type": "string" }, { "type": "null" }] }
+      }
+    },
+    "Scene": {
+      "type": "object",
+      "required": ["duration_s", "fps", "resolution", "camera"],
+      "additionalProperties": false,
+      "properties": {
+        "duration_s": { "type": "number", "exclusiveMinimum": 0 },
+        "fps": { "type": "integer", "enum": [24, 30, 60] },
+        "resolution": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "camera": { "$ref": "#/$defs/Camera" },
+        "lights": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Light" }
+        },
+        "subjects": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "objects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SceneObject" }
+        },
+        "animations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnimationTrack" }
+        },
+        "world": { "$ref": "#/$defs/WorldEnv" }
+      }
+    }
+  }
+}
