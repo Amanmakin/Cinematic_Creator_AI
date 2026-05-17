@@ -3,10 +3,23 @@
 import asyncio
 import json
 from collections import defaultdict
+from pydantic import BaseModel
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 router = APIRouter()
+
+
+class _PydanticEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, BaseModel):
+            return obj.model_dump(mode="json")
+        return super().default(obj)
+
+
+def _dumps(obj: object) -> str:
+    return json.dumps(obj, cls=_PydanticEncoder)
+
 
 # project_id -> set of active WebSocket connections
 _connections: dict[str, set[WebSocket]] = defaultdict(set)
@@ -14,7 +27,7 @@ _lock = asyncio.Lock()
 
 
 async def broadcast(project_id: str, message: dict) -> None:
-    payload = json.dumps(message, default=str)
+    payload = _dumps(message)
     async with _lock:
         dead = set()
         for ws in _connections.get(project_id, set()):

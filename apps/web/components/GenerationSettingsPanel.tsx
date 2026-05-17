@@ -80,14 +80,14 @@ export function GenerationSettingsPanel({ projectId }: Props) {
   }
 
   if (!config) {
-    return <p className="text-sm text-gray-500">{error ?? "Loading…"}</p>;
+    return <p className="text-xs text-slate-500">{error ?? "Loading…"}</p>;
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
+    <div className="rounded-lg border border-border bg-surface p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-800">Image Generation Strategy</h3>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
+        <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wide">Image Generation</h3>
+        {saving && <span className="text-xs text-slate-500">Saving…</span>}
       </div>
 
       <div className="space-y-2">
@@ -100,17 +100,17 @@ export function GenerationSettingsPanel({ projectId }: Props) {
               checked={config.strategy === s.value}
               onChange={() => handleChange({ strategy: s.value })}
               disabled={saving}
-              className="mt-1"
+              className="mt-1 accent-accent"
             />
             <div>
-              <p className="text-sm font-medium text-gray-700">{s.label}</p>
-              <p className="text-xs text-gray-500">{s.description}</p>
+              <p className="text-sm font-medium text-slate-200">{s.label}</p>
+              <p className="text-xs text-slate-500">{s.description}</p>
             </div>
           </label>
         ))}
       </div>
 
-      <hr className="border-gray-200" />
+      <hr className="border-border" />
 
       <label className="flex items-center gap-3 cursor-pointer">
         <input
@@ -118,16 +118,17 @@ export function GenerationSettingsPanel({ projectId }: Props) {
           checked={config.use_smaller_models}
           onChange={(e) => handleChange({ use_smaller_models: e.target.checked })}
           disabled={saving}
+          className="accent-accent"
         />
         <div>
-          <p className="text-sm font-medium text-gray-700">Use faster SD 1.5 locally</p>
-          <p className="text-xs text-gray-500">
+          <p className="text-sm font-medium text-slate-200">Use faster SD 1.5 locally</p>
+          <p className="text-xs text-slate-500">
             ~60 s/image instead of ~180 s for SDXL. Lower quality but much faster on Mac M-series.
           </p>
         </div>
       </label>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }

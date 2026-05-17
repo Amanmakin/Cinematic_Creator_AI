@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
 
@@ -81,19 +81,19 @@ SceneObject = Annotated[Union[PlaneCard, Mesh], Field(discriminator="kind")]
 class AnimationTrack(BaseModel):
     target_path: str
     times: list[float]
-    values: list[Any]
+    values: list[float]
     interp: Literal["linear", "bezier", "step"] = "linear"
 
 
 class WorldEnv(BaseModel):
-    background_color: tuple[float, float, float] = (0.05, 0.05, 0.05)
+    background_color: list[float] = Field(default_factory=lambda: [0.05, 0.05, 0.05])
     hdri_ref: str | None = None
 
 
 class Scene(BaseModel):
     duration_s: float = Field(gt=0)
     fps: Literal[24, 30, 60]
-    resolution: tuple[int, int]
+    resolution: list[int]
     camera: Camera
     lights: list[Light] = Field(default_factory=list)
     # Plan1 subjects kept for backward compat

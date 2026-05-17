@@ -59,11 +59,14 @@ def health() -> dict:
 @app.post("/generate")
 async def generate(req: GenerateRequest) -> dict:
     """Generate an image from a prompt and return the file path."""
+    import time
     generator = torch.Generator(device=device)
     if req.seed is not None:
         generator = generator.manual_seed(req.seed)
 
     try:
+        t0 = time.time()
+        logger.info("Inference starting: prompt=%r steps=%d", req.prompt[:50], req.num_inference_steps)
         result = pipe(
             prompt=req.prompt,
             negative_prompt=req.negative_prompt or None,
@@ -72,6 +75,8 @@ async def generate(req: GenerateRequest) -> dict:
             num_inference_steps=req.num_inference_steps,
             generator=generator,
         )
+        elapsed = time.time() - t0
+        logger.info("Inference completed in %.1fs", elapsed)
     except Exception as exc:
         logger.exception("Generation failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

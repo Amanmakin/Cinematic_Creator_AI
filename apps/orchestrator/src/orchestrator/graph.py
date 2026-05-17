@@ -23,7 +23,7 @@ from orchestrator.state import AgentState
 def build_graph(
     *,
     checkpointer: MemorySaver | None = None,
-    interrupt_before_speculative: bool = True,
+    interrupt_after_speculative: bool = True,
     visual_generator_node: Callable[[AgentState], dict] | None = None,
 ) -> CompiledStateGraph:
     g = StateGraph(AgentState)
@@ -73,8 +73,8 @@ def build_graph(
 
     g.add_edge("speculative_batcher", END)
 
-    interrupt_before = ["speculative_batcher"] if interrupt_before_speculative else []
+    interrupt_after = ["speculative_batcher"] if interrupt_after_speculative else []
     return g.compile(
         checkpointer=checkpointer or MemorySaver(),
-        interrupt_before=interrupt_before,
+        interrupt_after=interrupt_after,
     )

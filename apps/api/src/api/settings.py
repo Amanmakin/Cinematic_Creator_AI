@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     renders_root: str = "renders"
 
+    # LLM settings (overridable at runtime via /llm-settings endpoint)
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o-mini"
+    llm_base_url: str = ""
+
     # Plan8: Hybrid adapter / Docker diffusers settings
     generation_strategy: str = "local_fallback"
     """local_only | local_fallback | replicate_only | replicate_fallback"""

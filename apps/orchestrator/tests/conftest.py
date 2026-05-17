@@ -22,9 +22,10 @@ from orchestrator.schemas.intent import AmbiguityHints, IntentSpec
 class _StructuredStub:
     """Stand-in for `llm.with_structured_output(Schema)` — pops from a queue."""
 
-    def __init__(self, schema: type, queue: deque):
+    def __init__(self, schema: type, queue: deque, include_raw: bool = False):
         self._schema = schema
         self._queue = queue
+        self._include_raw = include_raw
 
     def invoke(self, _messages: Any) -> Any:
         if not self._queue:
@@ -32,9 +33,10 @@ class _StructuredStub:
         item = self._queue.popleft()
         if isinstance(item, Exception):
             raise item
-        if isinstance(item, self._schema):
-            return item
-        return self._schema.model_validate(item)
+        parsed = item if isinstance(item, self._schema) else self._schema.model_validate(item)
+        if self._include_raw:
+            return {"parsed": parsed, "raw": None, "parsing_error": None}
+        return parsed
 
 
 class FakeLLM:
@@ -42,12 +44,14 @@ class FakeLLM:
 
     def __init__(self) -> None:
         self._queues: dict[type, deque] = {}
+        self.model_name = "fake-llm"
 
     def enqueue(self, schema: type, value: Any) -> None:
         self._queues.setdefault(schema, deque()).append(value)
 
-    def with_structured_output(self, schema: type) -> _StructuredStub:
-        return _StructuredStub(schema, self._queues.setdefault(schema, deque()))
+    def with_structured_output(self, schema: type, **kwargs: Any) -> _StructuredStub:
+        include_raw = kwargs.get("include_raw", False)
+        return _StructuredStub(schema, self._queues.setdefault(schema, deque()), include_raw=include_raw)
 
 
 @pytest.fixture

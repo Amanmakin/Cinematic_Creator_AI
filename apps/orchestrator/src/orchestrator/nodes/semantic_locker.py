@@ -11,6 +11,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
+from orchestrator.node_logger import node_step
 from orchestrator.state import AgentState, SemanticLock
 
 
@@ -31,20 +32,25 @@ def _prior_intent(config: RunnableConfig | None) -> Any | None:
 
 
 def semantic_locker_node(state: AgentState, config=None) -> dict:
-    locks: list[SemanticLock] = list(state.semantic_locks)
+    with node_step(
+        "semantic_locker",
+        existing_locks=len(state.semantic_locks),
+    ) as out:
+        locks: list[SemanticLock] = list(state.semantic_locks)
 
-    prior = _prior_intent(config)
-    if prior is not None and state.intent is not None:
-        if getattr(prior, "subject", None) == state.intent.subject:
-            locks.append(
-                SemanticLock(
-                    path="scene.subjects[0]",
-                    asset_id=None,
-                    reason="subject unchanged across iterations",
+        prior = _prior_intent(config)
+        if prior is not None and state.intent is not None:
+            if getattr(prior, "subject", None) == state.intent.subject:
+                locks.append(
+                    SemanticLock(
+                        path="scene.subjects[0]",
+                        asset_id=None,
+                        reason="subject unchanged across iterations",
+                    )
                 )
-            )
 
-    return {
-        "semantic_locks": locks,
-        "execution_status": "semantic_lock_applied",
-    }
+        out.update(total_locks=len(locks), status="semantic_lock_applied")
+        return {
+            "semantic_locks": locks,
+            "execution_status": "semantic_lock_applied",
+        }

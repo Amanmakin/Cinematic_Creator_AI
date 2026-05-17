@@ -8,6 +8,7 @@ import logging
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from orchestrator import llm as llm_module
+from orchestrator.node_logger import llm_call, llm_response, node_step
 from orchestrator.schemas.canon import ProjectCanon
 from orchestrator.schemas.intent import IntentSpec
 from orchestrator.state import AgentState
@@ -100,48 +101,64 @@ def _build_context_sync(state: AgentState) -> list[dict]:
 
 
 def intent_validator_node(state: AgentState) -> dict:
-    system_prompt = llm_module.load_prompt("intent_system.md")
+    with node_step(
+        "intent_validator",
+        prompt=state.user_prompt,
+        project_id=state.project_id or "—",
+    ) as out:
+        system_prompt = llm_module.load_prompt("intent_system.md")
 
-    # Try to load memory context; fall back gracefully to the original prompt construction.
-    context_msgs: list[dict] = []
-    if state.project_id:
-        try:
-            context_msgs = _build_context_sync(state)
-        except Exception as exc:
-            log.warning("build_llm_context failed, falling back to bare prompt: %s", exc)
+        context_msgs: list[dict] = []
+        if state.project_id:
+            try:
+                context_msgs = _build_context_sync(state)
+            except Exception as exc:
+                log.warning("build_llm_context failed, falling back: %s", exc)
 
-    if context_msgs:
-        # Prepend the system prompt and replace the last user message if needed.
-        all_msgs = [{"role": "system", "content": system_prompt}] + context_msgs
-    else:
-        all_msgs = [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": (
-                    "PROJECT CANON:\n"
-                    f"{state.project_canon.model_dump_json(indent=2)}\n\n"
-                    "USER PROMPT:\n"
-                    f"{state.user_prompt}"
-                ),
-            },
-        ]
+        if context_msgs:
+            all_msgs = [{"role": "system", "content": system_prompt}] + context_msgs
+        else:
+            all_msgs = [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": (
+                        "PROJECT CANON:\n"
+                        f"{state.project_canon.model_dump_json(indent=2)}\n\n"
+                        "USER PROMPT:\n"
+                        f"{state.user_prompt}"
+                    ),
+                },
+            ]
 
-    lc_msgs = _msgs_to_langchain(all_msgs)
-    llm = llm_module.make_llm()
-    structured = llm.with_structured_output(IntentSpec)
-    intent: IntentSpec = structured.invoke(lc_msgs)
+        lc_msgs = _msgs_to_langchain(all_msgs)
+        llm = llm_module.make_llm()
+        llm_call(llm.model_name, len(lc_msgs))
 
-    errors = _hard_validate(intent, state.project_canon)
-    if errors:
+        structured = llm.with_structured_output(IntentSpec, include_raw=True)
+        result = structured.invoke(lc_msgs)
+        llm_response(result.get("raw"), result.get("parsing_error"))
+        intent: IntentSpec = result["parsed"]
+
+        errors = _hard_validate(intent, state.project_canon)
+        ambiguity = compute_ambiguity_score(intent)
+
+        out.update(
+            status="failed" if errors else "intent_validated",
+            ambiguity_score=round(ambiguity, 3),
+            subject=intent.subject,
+            hard_errors=errors or "none",
+        )
+
+        if errors:
+            return {
+                "intent": intent,
+                "execution_status": "failed",
+                "error_log": state.error_log + errors,
+            }
+
         return {
             "intent": intent,
-            "execution_status": "failed",
-            "error_log": state.error_log + errors,
+            "ambiguity_score": ambiguity,
+            "execution_status": "intent_validated",
         }
-
-    return {
-        "intent": intent,
-        "ambiguity_score": compute_ambiguity_score(intent),
-        "execution_status": "intent_validated",
-    }

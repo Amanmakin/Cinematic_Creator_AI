@@ -59,7 +59,7 @@ def test_missing_key_light(canon) -> None:
 
 def test_resolution_aspect_mismatch(canon) -> None:
     dsl = make_valid_dsl()
-    dsl.scene.resolution = (1920, 1080)  # 16:9 against a 9:16 canon
+    dsl.scene.resolution = [1920, 1080]  # 16:9 against a 9:16 canon
     findings = validate_dsl(dsl, canon)
     assert any(f.code == "scene.resolution_aspect_mismatch" for f in findings)
 

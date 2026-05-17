@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from orchestrator.node_logger import node_step
 from orchestrator.schemas.canon import ProjectCanon
 from orchestrator.schemas.dsl import BlenderDsl, PlaneCard, Vec3
 from orchestrator.state import AgentState, ValidationFinding
@@ -201,17 +202,30 @@ def validate_dsl(dsl: BlenderDsl, canon: ProjectCanon) -> list[ValidationFinding
 def physical_validation_node(state: AgentState) -> dict:
     assert state.scene_graph is not None, "physical_validation requires a scene_graph"
 
-    findings = validate_dsl(state.scene_graph, state.project_canon)
-    has_error = any(f.severity == "error" for f in findings)
+    with node_step(
+        "physical_validation",
+        retry_count=state.retry_count,
+        resolution=str(state.scene_graph.scene.resolution),
+    ) as out:
+        findings = validate_dsl(state.scene_graph, state.project_canon)
+        errors = [f for f in findings if f.severity == "error"]
+        has_error = bool(errors)
 
-    if has_error:
+        out.update(
+            findings=len(findings),
+            errors=len(errors),
+            error_codes=[e.code for e in errors] or "none",
+            status="physical_validation_failed" if has_error else "completed",
+        )
+
+        if has_error:
+            return {
+                "validation_findings": findings,
+                "execution_status": "physical_validation_failed",
+                "retry_count": state.retry_count + 1,
+            }
+
         return {
             "validation_findings": findings,
-            "execution_status": "physical_validation_failed",
-            "retry_count": state.retry_count + 1,
+            "execution_status": "completed",
         }
-
-    return {
-        "validation_findings": findings,
-        "execution_status": "completed",
-    }

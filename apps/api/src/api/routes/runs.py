@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +7,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from api.graph_dep import get_graph
 from api.persistence.projects_db import get_locks, get_project_canon, project_exists
-from api.ws.broadcaster import broadcast
+from api.ws.broadcaster import _dumps, broadcast
 from orchestrator.schemas.canon import ProjectCanon
 from orchestrator.state import AgentState, SemanticLock
 
@@ -44,15 +43,23 @@ async def start_run(project_id: str, body: RunRequest):
 
     async def event_stream() -> AsyncGenerator[dict, None]:
         loop = asyncio.get_event_loop()
-        # Run graph.stream in a thread because it may be sync
-        def _stream():
-            return list(graph.stream(initial_state.model_dump(), config, stream_mode="values"))
+        queue: asyncio.Queue = asyncio.Queue()
 
-        chunks = await loop.run_in_executor(None, _stream)
-        for chunk in chunks:
-            payload = json.dumps(chunk, default=str)
+        def _stream():
+            try:
+                for chunk in graph.stream(initial_state.model_dump(), config, stream_mode="values"):
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
+
+        loop.run_in_executor(None, _stream)
+
+        while True:
+            chunk = await queue.get()
+            if chunk is None:
+                break
             await broadcast(project_id, {"type": "state", "data": chunk})
-            yield {"event": "state", "data": payload}
+            yield {"event": "state", "data": _dumps(chunk)}
 
         yield {"event": "done", "data": "{}"}
 

@@ -1,10 +1,11 @@
-"""Replicate adapter — SDXL for generation, rembg for alpha, MiDaS for depth."""
+"""Replicate adapter — Flux Schnell for generation, model-endpoint API."""
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
-import os
+import logging
 import time
 from typing import TYPE_CHECKING
 
@@ -16,10 +17,11 @@ from orchestrator.schemas.creative import AssetRef, CreativeIntent, ProviderPayl
 if TYPE_CHECKING:
     from api.adapters.base import ProjectCtx
 
-_SDXL_MODEL = "stability-ai/sdxl:39ed52f2319f9b27d1fd1b43e0d71e5e5cc1dcd0"
-_REMBG_MODEL = "cjwbw/rembg:fb8af171cfa1616ddcf1242c851defdfa9538cd3"
-_MIDAS_MODEL = "cjwbw/midas:a6ba5798f04f80d3b314de0f0a62277f21ab3793"
-_CONTROLNET_MODEL = "jagilley/controlnet-canny:aff48af9c68d162388d230a2ab003f68d2638d88"
+logger = logging.getLogger(__name__)
+
+# Deployment models — use POST /models/{owner}/{name}/predictions (no version hash needed).
+_FLUX_MODEL = "black-forest-labs/flux-schnell"
+_CONTROLNET_MODEL = "jagilley/controlnet-canny"
 
 _GENERATION_KINDS = {"generate_subject", "generate_background", "generate_foreground_fx"}
 _REGEN_KINDS = {"regenerate_layer"}
@@ -42,23 +44,23 @@ class ReplicateAdapter:
         params = intent.parameters
         if intent.kind in _GENERATION_KINDS:
             prompt = params.get("prompt", "")
-            width = params.get("width", 1024)
-            height = params.get("height", 1024)
-            negative = params.get("negative_prompt", "")
+            # Flux Schnell accepts width/height up to 1440; use aspect_ratio-friendly sizes.
+            width = min(params.get("width", 1024), 1024)
+            height = min(params.get("height", 1024), 1024)
             inputs = {
                 "prompt": prompt,
-                "negative_prompt": negative,
-                "width": width,
-                "height": height,
                 "seed": intent.seed,
                 "num_outputs": 1,
-                "apply_watermark": False,
+                "num_inference_steps": 4,
+                "output_format": "png",
+                "width": width,
+                "height": height,
             }
             estimated = (width * height // 1024) * _COST_PER_STEP
             return ProviderPayload(
-                model=_SDXL_MODEL,
+                model=_FLUX_MODEL,
                 inputs=inputs,
-                adapter_hint=intent.adapter_hint or "replicate.sdxl",
+                adapter_hint=intent.adapter_hint or "replicate.flux",
                 estimated_tokens=estimated,
             )
         elif intent.kind in _REGEN_KINDS:
@@ -74,13 +76,18 @@ class ReplicateAdapter:
                 estimated_tokens=512,
             )
         else:
-            # post-processing intents (lighting, blur, palette) are cheap no-ops at payload level
             return ProviderPayload(
                 model="noop",
                 inputs={"kind": intent.kind, "parameters": params},
                 adapter_hint=intent.adapter_hint or "replicate.noop",
                 estimated_tokens=0,
             )
+
+    def _headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
 
     async def execute(self, payload: ProviderPayload) -> AssetRef:
         if payload.model == "noop":
@@ -89,39 +96,42 @@ class ReplicateAdapter:
                 adapter=self.name,
                 adapter_version=self.version,
             )
-        headers = {
-            "Authorization": f"Token {self._api_key}",
-            "Content-Type": "application/json",
-        }
-        body = {"version": payload.model.split(":")[-1], "input": payload.inputs}
+        url = f"{self._base_url}/models/{payload.model}/predictions"
+        body = {"input": payload.inputs}
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(
-                    f"{self._base_url}/predictions", headers=headers, json=body
-                )
-                resp.raise_for_status()
+                for attempt in range(4):
+                    resp = await client.post(url, headers=self._headers(), json=body)
+                    if resp.status_code == 429 and attempt < 3:
+                        wait = 2 ** attempt * 3
+                        logger.warning("Replicate 429, retrying in %ss (attempt %d)", wait, attempt + 1)
+                        await asyncio.sleep(wait)
+                        continue
+                    if not resp.is_success:
+                        logger.error("Replicate %s — %s", resp.status_code, resp.text[:400])
+                    resp.raise_for_status()
+                    break
                 prediction = resp.json()
                 prediction_id = prediction["id"]
-                output_url = await self._poll(client, headers, prediction_id)
+                output_url = await self._poll(client, prediction_id)
         except httpx.ConnectError as exc:
             raise ProviderUnavailable(f"Replicate unreachable: {exc}") from exc
         except httpx.HTTPStatusError as exc:
             raise ProviderUnavailable(f"Replicate HTTP {exc.response.status_code}") from exc
 
-        asset_id = _short_hash(output_url + str(time.time()))
         return AssetRef(
-            asset_id=asset_id,
+            asset_id=_short_hash(output_url + str(time.time())),
             adapter=self.name,
             adapter_version=self.version,
         )
 
     async def _poll(
-        self, client: httpx.AsyncClient, headers: dict, prediction_id: str, *, max_wait: float = 120.0
+        self, client: httpx.AsyncClient, prediction_id: str, *, max_wait: float = 120.0
     ) -> str:
         deadline = time.monotonic() + max_wait
         while time.monotonic() < deadline:
             resp = await client.get(
-                f"{self._base_url}/predictions/{prediction_id}", headers=headers
+                f"{self._base_url}/predictions/{prediction_id}", headers=self._headers()
             )
             resp.raise_for_status()
             data = resp.json()
@@ -133,7 +143,6 @@ class ReplicateAdapter:
                 return str(output)
             if status in ("failed", "canceled"):
                 raise ProviderUnavailable(f"Replicate prediction {prediction_id} {status}")
-            import asyncio
             await asyncio.sleep(2.0)
         raise ProviderUnavailable(f"Replicate prediction {prediction_id} timed out")
 

@@ -4,7 +4,7 @@ from orchestrator.state import AgentState
 
 HUMAN_APPROVAL_THRESHOLD = 0.8
 SPECULATIVE_THRESHOLD = 0.4
-MAX_RETRIES = 2
+MAX_RETRIES = 1
 
 
 def route_after_intent(state: AgentState) -> str:

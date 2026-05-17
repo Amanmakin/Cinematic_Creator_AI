@@ -26,7 +26,7 @@ class LocalDockerAdapter:
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        timeout_sec: float = 180.0,
+        timeout_sec: float = 360.0,
         use_smaller_model: bool = True,
     ) -> None:
         self._base_url = base_url.rstrip("/")

@@ -1,4 +1,11 @@
+import logging
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+
+load_dotenv()  # populate os.environ from .env before any LLM client is constructed
+
+logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +24,8 @@ from api.routes.creative import router as creative_router
 from api.routes.ot import router as ot_router
 from api.routes.render import router as render_router
 from api.routes.generation_settings import router as generation_settings_router
+from api.routes.llm_settings import router as llm_settings_router
+from api.routes.llm_settings import load_and_apply_saved as llm_load_and_apply
 from api.routes.style import router as style_router
 from api.settings import settings
 from api.ws.broadcaster import router as ws_router
@@ -31,6 +40,7 @@ async def lifespan(app: FastAPI):
     await uar_mod.migrate()
     await retrieval_mod.init_tables()
     await compressed_mod.init_table()
+    await llm_load_and_apply()
     yield
 
 
@@ -57,4 +67,5 @@ app.include_router(ot_router, prefix="/projects", tags=["ot"])
 app.include_router(checkpoints_router, prefix="/projects", tags=["checkpoints"])
 app.include_router(style_router, prefix="/projects", tags=["style"])
 app.include_router(generation_settings_router, prefix="/projects", tags=["generation"])
+app.include_router(llm_settings_router, tags=["llm"])
 app.include_router(ws_router)

@@ -4,7 +4,7 @@ WORKDIR /app
 
 # System deps for PIL/torch
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl libgl1-mesa-glx libglib2.0-0 \
+    curl libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # CPU-only torch keeps the image lean (~1.5 GB vs ~6 GB for CUDA).
@@ -22,4 +22,7 @@ ENV DEVICE=cpu
 
 EXPOSE 8000
 
-CMD ["uvicorn", "inference_api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Increase timeouts for CPU inference (takes ~5 mins on CPU)
+# --timeout-keep-alive: connection idle timeout
+# Default request timeout is 60s but we handle it in the async endpoint
+CMD ["uvicorn", "inference_api:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "600"]

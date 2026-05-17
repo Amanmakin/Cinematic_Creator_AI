@@ -42,14 +42,11 @@ def test_retry_then_fail_on_invalid_dsl(fake_llm, canon, low_ambiguity_intent) -
     bad_one = make_valid_dsl()
     bad_one.scene.camera.focal_mm = 0.1  # under-range
     bad_two = make_valid_dsl()
-    bad_two.scene.camera.focal_mm = 0.2  # still under-range
-    bad_three = make_valid_dsl()
-    bad_three.scene.camera.focal_mm = 0.3  # still under-range
+    bad_two.scene.camera.focal_mm = 0.2  # still under-range (retry attempt)
 
     fake_llm.enqueue(IntentSpec, low_ambiguity_intent)
     fake_llm.enqueue(BlenderDsl, bad_one)
     fake_llm.enqueue(BlenderDsl, bad_two)
-    fake_llm.enqueue(BlenderDsl, bad_three)
 
     graph = build_graph()
     config = {"configurable": {"thread_id": "t-retry"}}
@@ -60,7 +57,7 @@ def test_retry_then_fail_on_invalid_dsl(fake_llm, canon, low_ambiguity_intent) -
 
     final_state = AgentState.model_validate(final)
     assert final_state.execution_status == "physical_validation_failed"
-    assert final_state.retry_count == 2
+    assert final_state.retry_count == 1  # MAX_RETRIES=1
     assert any(
         f.code == "camera.focal_mm_out_of_range"
         for f in final_state.validation_findings
@@ -89,20 +86,23 @@ def test_intent_failure_short_circuits(fake_llm, canon) -> None:
     assert any("duration_exceeds_canon" in m for m in final_state.error_log)
 
 
-def test_speculative_branch_interrupts_before_batcher(
+def test_speculative_branch_runs_batcher_then_pauses(
     fake_llm, canon, low_ambiguity_intent
 ) -> None:
-    """Medium-ambiguity intent routes to the speculative batcher, which is
-    breakpointed — invoke() should return *before* the batcher runs."""
+    """Medium-ambiguity intent routes to the speculative batcher, which runs
+    and then pauses (interrupt_after) so the user can pick a variant."""
+    from orchestrator.nodes.speculative_batcher import _SpeculativeBatch
+
     medium = low_ambiguity_intent.model_copy(update={
         "ambiguity_hints": low_ambiguity_intent.ambiguity_hints.model_copy(
             update={"confidence": 0.0, "underspecified_fields": ["lighting"]}
         )
     })
     fake_llm.enqueue(IntentSpec, medium)
-    # No BlenderDsl queued — the batcher must not be invoked.
+    batch = _SpeculativeBatch(variants=[make_valid_dsl(), make_valid_dsl(), make_valid_dsl()])
+    fake_llm.enqueue(_SpeculativeBatch, batch)
 
-    graph = build_graph(interrupt_before_speculative=True)
+    graph = build_graph(interrupt_after_speculative=True)
     config = {"configurable": {"thread_id": "t-spec"}}
     graph.invoke(
         AgentState(user_prompt="prompt", project_canon=canon),
@@ -110,5 +110,6 @@ def test_speculative_branch_interrupts_before_batcher(
     )
 
     snapshot = graph.get_state(config)
-    # Halted before speculative_batcher — it should still be a "next" task.
-    assert "speculative_batcher" in snapshot.next
+    # Batcher ran and produced variants; graph is now paused after it.
+    assert len(snapshot.values.get("speculative_variants", [])) == 3
+    assert snapshot.values.get("execution_status") == "speculative_batching"

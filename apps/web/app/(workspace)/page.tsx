@@ -7,14 +7,28 @@ import LockManager from "@/components/ControlPanel/LockManager";
 import PromptComposer from "@/components/ControlPanel/PromptComposer";
 import Timeline from "@/components/ControlPanel/Timeline";
 import Viewport from "@/components/RenderStudio/Viewport";
+import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { useProjectStore } from "@/state/projectStore";
+import type { ProjectCanon } from "@/lib/types/agentState";
+
+const DEFAULT_CANON: ProjectCanon = {
+  aspect_ratio: "16:9",
+  duration_seconds_max: 30,
+  aesthetic_tags: [],
+  style_guide: "",
+  banned_terms: [],
+};
 
 export default function WorkspacePage() {
-  const { projectId, agentState, connect } = useProjectStore();
+  const { projectId, agentState, connect, initProject } = useProjectStore();
 
   useEffect(() => {
-    if (projectId) connect();
-  }, [projectId, connect]);
+    if (projectId) {
+      connect();
+    } else {
+      initProject(DEFAULT_CANON);
+    }
+  }, [projectId, connect, initProject]);
 
   const needsApproval =
     agentState?.execution_status === "awaiting_human_approval" ||
@@ -29,6 +43,7 @@ export default function WorkspacePage() {
         <Timeline />
         <LockManager />
         <BudgetIndicator />
+        {projectId && <SettingsDrawer projectId={projectId} />}
       </aside>
 
       {/* Right panel */}

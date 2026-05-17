@@ -83,11 +83,8 @@ def make_visual_generator_node(
         has_budget_exceeded = False
 
         async def _run_all() -> None:
-            coros = [
-                _generate_one(intent, ctx, locked_paths, new_events, new_assets)
-                for intent in state.creative_intents
-            ]
-            await asyncio.gather(*coros)
+            for intent in state.creative_intents:
+                await _generate_one(intent, ctx, locked_paths, new_events, new_assets)
 
         try:
             loop = asyncio.get_event_loop()
