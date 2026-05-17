@@ -26,7 +26,7 @@ class LocalDockerAdapter:
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        timeout_sec: float = 360.0,
+        timeout_sec: float = 600.0,
         use_smaller_model: bool = True,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -84,6 +84,8 @@ class LocalDockerAdapter:
             raise ProviderUnavailable(f"Docker service unreachable: {exc}") from exc
         except httpx.TimeoutException as exc:
             raise ProviderUnavailable(f"Docker service timed out after {self._timeout}s") from exc
+        except httpx.RemoteProtocolError as exc:
+            raise ProviderUnavailable(f"Docker service disconnected without response: {exc}") from exc
         except httpx.HTTPStatusError as exc:
             raise ProviderUnavailable(
                 f"Docker service HTTP {exc.response.status_code}: {exc.response.text[:200]}"

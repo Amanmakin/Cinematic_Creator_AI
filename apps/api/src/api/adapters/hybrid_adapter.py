@@ -49,7 +49,7 @@ class HybridAdapter:
         api_key: str,
         strategy: str = "local_fallback",
         docker_base_url: str = "http://localhost:8000",
-        timeout_local: float = 360.0,
+        timeout_local: float = 600.0,
         timeout_replicate: float = 120.0,
         use_smaller_model: bool = True,
     ) -> None:

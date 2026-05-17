@@ -59,22 +59,28 @@ def health() -> dict:
 @app.post("/generate")
 async def generate(req: GenerateRequest) -> dict:
     """Generate an image from a prompt and return the file path."""
+    import asyncio
     import time
+
     generator = torch.Generator(device=device)
     if req.seed is not None:
         generator = generator.manual_seed(req.seed)
 
-    try:
-        t0 = time.time()
-        logger.info("Inference starting: prompt=%r steps=%d", req.prompt[:50], req.num_inference_steps)
-        result = pipe(
+    def _run_inference() -> object:
+        return pipe(
             prompt=req.prompt,
             negative_prompt=req.negative_prompt or None,
-            width=min(req.width, 1024),
-            height=min(req.height, 1024),
+            width=min(req.width, 512),
+            height=min(req.height, 512),
             num_inference_steps=req.num_inference_steps,
             generator=generator,
         )
+
+    try:
+        t0 = time.time()
+        logger.info("Inference starting: prompt=%r steps=%d", req.prompt[:50], req.num_inference_steps)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _run_inference)
         elapsed = time.time() - t0
         logger.info("Inference completed in %.1fs", elapsed)
     except Exception as exc:
