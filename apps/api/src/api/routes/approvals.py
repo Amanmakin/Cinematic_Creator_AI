@@ -6,7 +6,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from api.dag.reducers import record_event
 from api.graph_dep import get_graph
+from api.memory.retrieval import record_rejection
 from api.persistence.projects_db import project_exists
 from api.ws.broadcaster import broadcast
 
@@ -14,9 +16,10 @@ router = APIRouter()
 
 
 class ApprovalRequest(BaseModel):
-    decision: Literal["accept", "modify", "select_variant"]
+    decision: Literal["accept", "modify", "select_variant", "reject"]
     modified_prompt: str | None = None
     variant_index: int | None = None
+    rejection_reason: str | None = None  # required when decision == "reject"
 
 
 @router.post("/{project_id}/approve")
@@ -57,6 +60,25 @@ async def approve(project_id: str, body: ApprovalRequest):
             {"scene_graph": chosen, "speculative_variants": []},
             as_node="speculative_batcher",
         )
+
+    elif body.decision == "reject":
+        reason = body.rejection_reason or ""
+        current_values = snapshot.values
+        prompt = current_values.get("user_prompt", "")
+        # Record rejection in memory tier asynchronously (fire-and-forget style is fine
+        # here; if the embed call fails we still want the graph reset to continue).
+        try:
+            rejection_id = await record_rejection(project_id, prompt, reason)
+            await record_event(
+                project_id,
+                "RejectionCaptured",
+                {"rejection_id": rejection_id, "prompt": prompt, "reason": reason},
+            )
+        except Exception:
+            pass  # don't block the user flow on memory write failures
+        # Reset the graph to idle so the user can provide a new prompt.
+        graph.update_state(config, {"execution_status": "idle"}, as_node="intent_validator")
+        return {"status": "rejected", "reason": reason}
 
     async def resume_stream() -> AsyncGenerator[dict, None]:
         loop = asyncio.get_event_loop()

@@ -56,6 +56,31 @@ export async function approve(
   if (onChunk) await consumeSse(res, onChunk);
 }
 
+export async function rejectIntent(
+  projectId: string,
+  rejectionReason: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision: "reject", rejection_reason: rejectionReason }),
+  });
+  if (!res.ok) throw new Error(`rejectIntent failed: ${res.status}`);
+}
+
+export async function pinStyleOverride(
+  projectId: string,
+  description: string,
+): Promise<{ override_id: string }> {
+  const res = await fetch(`${BASE}/projects/${projectId}/style-overrides`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description }),
+  });
+  if (!res.ok) throw new Error(`pinStyleOverride failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getLocks(projectId: string) {
   const res = await fetch(`${BASE}/projects/${projectId}/locks`);
   if (!res.ok) throw new Error(`getLocks failed: ${res.status}`);

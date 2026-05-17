@@ -1,7 +1,14 @@
 """Blender render script — ONLY file that imports bpy.
 
 Usage (invoked by blender_runner.py):
-    blender --background --python render.py -- <glb_path> <extras_json> <out_dir>
+    blender --background --python render.py -- <glb_path> <extras_json> <out_dir> [options]
+
+Options:
+    --mode preview|final   (default: single frame, same as original)
+    --frames N             frame count for preview mode
+    --res-x W --res-y H    resolution override
+    --engine eevee|cycles  engine for final mode
+    --fps N                fps for final animation
 """
 from __future__ import annotations
 
@@ -13,7 +20,7 @@ from pathlib import Path
 import bpy  # type: ignore[import]  # only available inside Blender
 
 
-def _parse_args() -> tuple[str, str, str]:
+def _parse_args() -> dict:
     argv = sys.argv
     try:
         sep = argv.index("--")
@@ -22,7 +29,44 @@ def _parse_args() -> tuple[str, str, str]:
     args = argv[sep + 1:]
     if len(args) < 3:
         raise SystemExit("Expected: <glb_path> <extras_json_path> <out_dir>")
-    return args[0], args[1], args[2]
+
+    params = {
+        "glb_path": args[0],
+        "extras_path": args[1],
+        "out_dir": args[2],
+        "mode": "single",
+        "frames": 1,
+        "res_x": None,
+        "res_y": None,
+        "engine": "eevee",
+        "fps": 24,
+    }
+
+    i = 3
+    while i < len(args):
+        flag = args[i]
+        if flag == "--mode" and i + 1 < len(args):
+            params["mode"] = args[i + 1]
+            i += 2
+        elif flag == "--frames" and i + 1 < len(args):
+            params["frames"] = int(args[i + 1])
+            i += 2
+        elif flag == "--res-x" and i + 1 < len(args):
+            params["res_x"] = int(args[i + 1])
+            i += 2
+        elif flag == "--res-y" and i + 1 < len(args):
+            params["res_y"] = int(args[i + 1])
+            i += 2
+        elif flag == "--engine" and i + 1 < len(args):
+            params["engine"] = args[i + 1]
+            i += 2
+        elif flag == "--fps" and i + 1 < len(args):
+            params["fps"] = int(args[i + 1])
+            i += 2
+        else:
+            i += 1
+
+    return params
 
 
 def _import_glb(glb_path: str) -> None:
@@ -55,7 +99,6 @@ def _configure_camera(cam_info: dict) -> None:
             math.radians(rot[2]),
         )
     elif look_at:
-        # Point camera toward look_at using track-to constraint
         constraint = cam_obj.constraints.new("TRACK_TO")
         target = bpy.data.objects.new("CVC_LookAt", None)
         target.location = (look_at[0], look_at[1], look_at[2])
@@ -88,13 +131,21 @@ def _configure_world(world_info: dict) -> None:
     bpy.context.scene.world = world
 
 
-def _setup_eevee(resolution: tuple[int, int] | None = None) -> None:
-    bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"
+def _setup_engine(engine: str, resolution: tuple[int, int] | None = None) -> None:
+    if engine == "cycles":
+        bpy.context.scene.render.engine = "CYCLES"
+        bpy.context.scene.cycles.samples = 128
+    else:
+        bpy.context.scene.render.engine = "BLENDER_EEVEE_NEXT"
     if resolution:
         bpy.context.scene.render.resolution_x = resolution[0]
         bpy.context.scene.render.resolution_y = resolution[1]
     bpy.context.scene.render.image_settings.file_format = "PNG"
     bpy.context.scene.render.image_settings.color_mode = "RGBA"
+
+
+def _setup_eevee(resolution: tuple[int, int] | None = None) -> None:
+    _setup_engine("eevee", resolution)
 
 
 def _kelvin_to_rgb(kelvin: int) -> tuple[float, float, float]:
@@ -114,11 +165,32 @@ def _kelvin_to_rgb(kelvin: int) -> tuple[float, float, float]:
     return r, g, b
 
 
-def main() -> None:
-    glb_path, extras_path, out_dir = _parse_args()
-    extras = json.loads(Path(extras_path).read_text())
+def _render_single(out_dir: str, frame: int = 0, prefix: str = "frame") -> str:
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    frame_path = str(out_path / f"{prefix}_{frame:04d}.png")
+    bpy.context.scene.render.filepath = frame_path
+    bpy.context.scene.frame_set(frame)
+    print(f"CVC_FRAME:{frame}:rendering to {frame_path}", flush=True)
+    bpy.ops.render.render(write_still=True)
+    print(f"CVC_FRAME:{frame}:done", flush=True)
+    return frame_path
 
-    # Clear default scene objects
+
+def main() -> None:
+    params = _parse_args()
+    glb_path = params["glb_path"]
+    extras_path = params["extras_path"]
+    out_dir = params["out_dir"]
+    mode = params["mode"]
+    frame_count = params["frames"]
+    res_x = params["res_x"]
+    res_y = params["res_y"]
+    engine = params["engine"]
+    fps = params["fps"]
+
+    extras = json.loads(Path(extras_path).read_text()) if Path(extras_path).exists() else {}
+
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete()
 
@@ -134,18 +206,30 @@ def main() -> None:
     world_info = extras.get("cvc_world", {})
     _configure_world(world_info)
 
-    _setup_eevee()
+    resolution = (res_x, res_y) if res_x and res_y else None
 
-    out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
-    frame_path = str(out_path / "frame_0000.png")
+    if mode == "preview":
+        _setup_engine("eevee", resolution or (480, 854))
+        for fi in range(frame_count):
+            _render_single(out_dir, frame=fi)
 
-    bpy.context.scene.render.filepath = frame_path
-    bpy.context.scene.frame_set(0)
+    elif mode == "final":
+        _setup_engine(engine, resolution or (1920, 1080))
+        bpy.context.scene.render.fps = fps
+        for fi in range(frame_count):
+            _render_single(out_dir, frame=fi)
 
-    print(f"CVC_FRAME:0:rendering to {frame_path}", flush=True)
-    bpy.ops.render.render(write_still=True)
-    print(f"CVC_FRAME:0:done", flush=True)
+    else:
+        # Legacy single-frame mode
+        _setup_eevee(resolution)
+        out_path = Path(out_dir)
+        out_path.mkdir(parents=True, exist_ok=True)
+        frame_path = str(out_path / "frame_0000.png")
+        bpy.context.scene.render.filepath = frame_path
+        bpy.context.scene.frame_set(0)
+        print(f"CVC_FRAME:0:rendering to {frame_path}", flush=True)
+        bpy.ops.render.render(write_still=True)
+        print(f"CVC_FRAME:0:done", flush=True)
 
 
 if __name__ == "__main__":

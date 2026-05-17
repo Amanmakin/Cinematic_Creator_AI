@@ -4,7 +4,7 @@ from functools import lru_cache
 
 from langgraph.graph.state import CompiledStateGraph
 
-from api.adapters.replicate_adapter import ReplicateAdapter
+from api.adapters.hybrid_adapter import HybridAdapter
 from api.orchestrator.budget import BudgetLedger
 from api.orchestrator.creative_dispatch import make_visual_generator_node
 from api.persistence.projects_db import get_sqlite_checkpointer
@@ -24,8 +24,15 @@ def get_ledger() -> BudgetLedger:
 
 
 @lru_cache(maxsize=1)
-def get_adapter() -> ReplicateAdapter:
-    return ReplicateAdapter(api_key=settings.replicate_api_key)
+def get_adapter() -> HybridAdapter:
+    return HybridAdapter(
+        api_key=settings.replicate_api_key,
+        strategy=settings.generation_strategy,
+        docker_base_url=settings.docker_diffusers_url,
+        timeout_local=float(settings.generation_timeout_local),
+        timeout_replicate=float(settings.generation_timeout_replicate),
+        use_smaller_model=settings.use_smaller_models_locally,
+    )
 
 
 @lru_cache(maxsize=1)

@@ -1,0 +1,31 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  diffusers:
+    build: ./docker/diffusers
+    container_name: cinematic-diffusers
+    ports:
+      - "8001:8000"
+    environment:
+      # Set SMALLER_MODEL=false to use SDXL instead of SD1.5 (slower, higher quality)
+      - SMALLER_MODEL=${DOCKER_SMALLER_MODEL:-true}
+      # cpu for Mac M-series; cuda for Linux with GPU
+      - DEVICE=${DOCKER_DEVICE:-cpu}
+    volumes:
+      # Persist downloaded model weights across container restarts (~5-10 GB)
+      - ./docker/models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped

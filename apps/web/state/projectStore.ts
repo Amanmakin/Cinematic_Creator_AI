@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import * as api from "@/lib/api";
 import { createProjectSocket } from "@/lib/ws";
-import type { AgentState, ProjectCanon, StateCheckpoint } from "@/lib/types/agentState";
+import { diffSceneGraph } from "@/lib/sceneGraph/diff";
+import type { AgentState, BlenderDsl, ProjectCanon, StateCheckpoint } from "@/lib/types/agentState";
+import type { OtOp } from "@/lib/sceneGraph/diff";
 
 interface TimelineEntry {
   checkpoint_id: string;
@@ -14,6 +16,8 @@ interface ProjectState {
   canon: ProjectCanon | null;
   agentState: AgentState | null;
   timeline: TimelineEntry[];
+  otSceneGraph: BlenderDsl | null;
+  otVersion: number;
   wsConnected: boolean;
   isRunning: boolean;
   error: string | null;
@@ -30,6 +34,7 @@ interface ProjectState {
   addLock: (path: string, reason: string, asset_id?: string) => Promise<void>;
   removeLock: (path: string) => Promise<void>;
   forkTo: (checkpointId: string) => Promise<void>;
+  applyOt: (ops: OtOp[]) => Promise<void>;
 }
 
 let _destroyWs: (() => void) | null = null;
@@ -39,6 +44,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   canon: null,
   agentState: null,
   timeline: [],
+  otSceneGraph: null,
+  otVersion: 0,
   wsConnected: false,
   isRunning: false,
   error: null,
@@ -65,18 +72,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     _destroyWs = createProjectSocket(
       projectId,
       (msg) => {
-        const state = msg.data as AgentState;
-        set((prev) => ({
-          agentState: { ...prev.agentState, ...state } as AgentState,
-          timeline: [
-            ...prev.timeline,
-            {
-              checkpoint_id: crypto.randomUUID(),
-              execution_status: state.execution_status,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        }));
+        if (msg.type === "state") {
+          const state = msg.data as AgentState;
+          set((prev) => ({
+            agentState: { ...prev.agentState, ...state } as AgentState,
+            timeline: [
+              ...prev.timeline,
+              {
+                checkpoint_id: crypto.randomUUID(),
+                execution_status: state.execution_status,
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          }));
+        } else if (msg.type === "scene_graph_mutated" || msg.type === "ot_commit_rebased") {
+          const data = msg.data as { version: number; scene_graph: BlenderDsl };
+          set({ otSceneGraph: data.scene_graph, otVersion: data.version });
+        } else if (msg.type === "ot_commit_rejected") {
+          const data = msg.data as { reason: string; path?: string };
+          set({ error: `OT rejected: ${data.reason}${data.path ? ` (${data.path})` : ""}` });
+        } else if (msg.type === "ot_conflict") {
+          set({ error: "OT conflict — server state changed, re-fetching" });
+        }
       },
       (open) => set({ wsConnected: open }),
     );
@@ -120,7 +137,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await api.addLock(projectId, { path, reason, asset_id });
-    // Refresh lock list via agentState on next run; no local patch needed
   },
 
   removeLock: async (path) => {
@@ -141,7 +157,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     const { fork_project_id } = await api.forkProject(projectId, checkpointId);
-    set({ projectId: fork_project_id, agentState: null, timeline: [], error: null });
+    set({ projectId: fork_project_id, agentState: null, timeline: [], otSceneGraph: null, otVersion: 0, error: null });
     get().connect();
+  },
+
+  applyOt: async (ops) => {
+    const { projectId, otVersion, otSceneGraph } = get();
+    if (!projectId || !otSceneGraph) return;
+    set({ error: null });
+    try {
+      await api.submitOt(projectId, otVersion, ops);
+    } catch (e: any) {
+      set({ error: e.message });
+    }
   },
 }));

@@ -19,6 +19,11 @@ dependencies = [
     "httpx>=0.27.0",
     "pygltflib>=1.16.5",
     "numpy>=2.4.5",
+    "arq>=0.26.0",
+    "redis[asyncio]>=5.0.0",
+    "openai>=1.30.0",
+    "numpy>=2.4.5",
+    "tiktoken>=0.7.0",
 ]
 
 [project.optional-dependencies]
@@ -42,3 +47,6 @@ allow-direct-references = true
 testpaths = ["tests"]
 pythonpath = ["src", "../../", "../orchestrator/src"]
 asyncio_mode = "auto"
+
+[tool.uv.sources]
+orchestrator = { path = "../orchestrator", editable = true }

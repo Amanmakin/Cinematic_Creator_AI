@@ -5,8 +5,8 @@ import ApprovalDialog from "@/components/ControlPanel/ApprovalDialog";
 import BudgetIndicator from "@/components/ControlPanel/BudgetIndicator";
 import LockManager from "@/components/ControlPanel/LockManager";
 import PromptComposer from "@/components/ControlPanel/PromptComposer";
-import StateTimeline from "@/components/ControlPanel/StateTimeline";
-import JsonTree from "@/components/RenderStudio/JsonTree";
+import Timeline from "@/components/ControlPanel/Timeline";
+import Viewport from "@/components/RenderStudio/Viewport";
 import { useProjectStore } from "@/state/projectStore";
 
 export default function WorkspacePage() {
@@ -26,15 +26,14 @@ export default function WorkspacePage() {
       <aside className="w-[420px] flex-shrink-0 flex flex-col gap-4 p-4 bg-panel border-r border-border overflow-y-auto">
         <h1 className="text-lg font-semibold text-accent">CinematicVideoCreator</h1>
         <PromptComposer />
-        <StateTimeline />
+        <Timeline />
         <LockManager />
         <BudgetIndicator />
       </aside>
 
       {/* Right panel */}
-      <main className="flex-1 overflow-auto p-6">
-        <h2 className="text-sm font-medium text-slate-400 mb-3">Render Studio (DSL Preview)</h2>
-        <JsonTree data={agentState?.scene_graph ?? null} />
+      <main className="flex-1 overflow-auto bg-slate-950">
+        <Viewport />
       </main>
 
       {needsApproval && <ApprovalDialog />}
