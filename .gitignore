@@ -93,3 +93,6 @@ checkpoints/
 *.blend2
 render_output/
 renders/
+
+# ─── UAR project assets ───────────────────────────────────────────────────────
+apps/api/uar_assets/

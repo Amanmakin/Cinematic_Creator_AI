@@ -12,7 +12,7 @@ The current orchestration pipeline lacks a true visual approval phase before exp
 
 This implementation introduces a brand-new deterministic orchestration node:
 
-```text
+```
 wireframe_previs_generator
 ```
 
@@ -22,23 +22,48 @@ This transforms the approval phase into a real cinematic previsualization system
 
 ---
 
+## Staged Generation Principle
+
+The pipeline supports three explicit generation depths determined by what the user requested:
+
+| User Request | Pipeline Stops At | What Is Returned | Offered Next Action |
+|---|---|---|---|
+| wireframes | after `wireframe_previs_generator` | wireframe renders only | "Proceed to Model Generation" |
+| models | after `visual_generator` | wireframes + 2D/2.5D model renders | "Proceed to Video Generation" |
+| video (default) | after full pipeline | wireframes + models + final video | — |
+
+The system never auto-advances past a stage boundary without explicit user action. Each boundary surfaces a clearly labelled proceed option in the UI.
+
+---
+
 # Target Pipeline
 
-```text
+```
 intent_validator
   ├─ human_approval → END
   ├─ fail → END
   ├─ speculative → speculative_batcher → [INTERRUPT] → END
-  └─ proceed → semantic_locker
-                  ↓
-          scene_graph_generator
-                  ↓
-       wireframe_previs_generator
-                  ↓
-          [INTERRUPT/APPROVAL]
-                  ├─ accept → creative_dispatcher → visual_generator → physical_validation
-                  ├─ modify → wireframe_previs_generator
-                  └─ reject → scene_graph_generator
+  └─ proceed → generation_mode_parser → semantic_locker
+                                                ↓
+                                      scene_graph_generator
+                                                ↓
+                                   wireframe_previs_generator
+                                                ↓
+                                 [INTERRUPT — wireframe_generated]
+                                                ├─ accept + mode=="wireframe" → END
+                                                │          (UI offers "Proceed to Model Generation")
+                                                ├─ accept + mode in {"model","video"} → creative_dispatcher
+                                                │                                              ↓
+                                                │                                      visual_generator
+                                                │                                              ↓
+                                                │                             [INTERRUPT — model_generated]
+                                                │                                              ├─ accept + mode=="model" → END
+                                                │                                              │          (UI offers "Proceed to Video Generation")
+                                                │                                              ├─ accept + mode=="video" → physical_validation → END
+                                                │                                              ├─ modify → visual_generator
+                                                │                                              └─ reject → wireframe_previs_generator
+                                                ├─ modify → wireframe_previs_generator
+                                                └─ reject → scene_graph_generator
 ```
 
 ---
@@ -47,7 +72,7 @@ intent_validator
 
 Replace text-based storyboard generation with:
 
-```text
+```
 Scene Graph
    ↓
 Blender DSL Compiler
@@ -57,6 +82,14 @@ Deterministic Camera Planner
 Viewport/OpenGL Renderer
    ↓
 Wireframe Thumbnails
+   ↓
+[stage gate — wireframe mode stops here]
+   ↓
+2D / 2.5D Model Renders
+   ↓
+[stage gate — model mode stops here]
+   ↓
+Final Video
 ```
 
 This ensures previews are:
@@ -93,7 +126,7 @@ using real rendered previews rather than prose descriptions.
 
 ## New File
 
-```text
+```
 apps/orchestrator/src/orchestrator/schemas/previsualization.py
 ```
 
@@ -112,28 +145,19 @@ class LightingInfo(BaseModel):
 
 class WireframeFrame(BaseModel):
     frame_index: int
-
     time_start_s: float
     time_end_s: float
-
     camera: CameraTransform
     lighting: LightingInfo
-
     viewport_image_path: str
     viewport_thumbnail_path: str
-
     notes: str | None = None
 
 class Previsualization(BaseModel):
     frames: list[WireframeFrame]
-
     mood: str
     palette_hint: str
-
-    render_engine: Literal[
-        "blender_eevee",
-        "opengl"
-    ]
+    render_engine: Literal["blender_eevee", "opengl"]
 ```
 
 ---
@@ -142,52 +166,87 @@ class Previsualization(BaseModel):
 
 ## Modify
 
-```text
+```
 apps/orchestrator/src/orchestrator/state.py
 ```
 
----
-
 ## Add Execution Stages
 
-Add:
+Add to `ExecutionStage`:
 
 ```python
 "previsualization_generated"
 "previsualization_approved"
+"previsualization_feedback"
+"model_generated"
+"model_approved"
+"model_feedback"
 ```
 
-to `ExecutionStage`.
+## Add Generation Mode Enum
 
----
+```python
+class GenerationMode(str, Enum):
+    wireframe = "wireframe"
+    model = "model"
+    video = "video"
+```
 
 ## Add State Fields
 
 ```python
-previsualization: Previsualization | None = None
+generation_mode: GenerationMode = GenerationMode.video
 
+previsualization: Previsualization | None = None
 previsualization_feedback: str | None = None
+
+model_renders: list[str] | None = None   # paths to 2D/2.5D renders
+model_feedback: str | None = None
 ```
 
 ---
 
-# D3 — New Wireframe Previsualization Node
+# D3 — Generation Mode Parser Node
 
 ## New File
 
-```text
+```
+apps/orchestrator/src/orchestrator/nodes/generation_mode_parser.py
+```
+
+Runs immediately after `intent_validator`, before `semantic_locker`. Reads `state.intent` and sets `generation_mode`.
+
+## Responsibilities
+
+Parse the user's natural-language request to determine generation depth. No LLM call — pure keyword heuristic so the mode is deterministic and free.
+
+```python
+def parse_generation_mode(intent: str) -> GenerationMode:
+    intent_lower = intent.lower()
+    if any(kw in intent_lower for kw in ["wireframe", "layout", "blocking", "previs"]):
+        return GenerationMode.wireframe
+    if any(kw in intent_lower for kw in ["model", "render", "2d", "2.5d", "scene"]):
+        return GenerationMode.model
+    return GenerationMode.video
+```
+
+## Return
+
+```python
+return {"generation_mode": parse_generation_mode(state.intent)}
+```
+
+---
+
+# D4 — Wireframe Previsualization Node
+
+## New File
+
+```
 apps/orchestrator/src/orchestrator/nodes/wireframe_previs_generator.py
 ```
 
-This is a completely new orchestration node.
-
-The node is responsible for generating deterministic cinematic wireframe previews directly from the Scene Graph.
-
----
-
-# Node Responsibilities
-
----
+This is a completely new orchestration node responsible for generating deterministic cinematic wireframe previews directly from the Scene Graph.
 
 ## Inputs
 
@@ -204,29 +263,19 @@ Assert required fields exist.
 
 ---
 
-# Responsibilities
-
----
-
 ## 1. Compile Scene Graph → Blender DSL
 
 Convert canonical scene graph into executable Blender scene instructions.
 
-Example:
-
 ```python
-scene = BlenderSceneCompiler().compile(
-    scene_graph=state.scene_graph
-)
+scene = BlenderSceneCompiler().compile(scene_graph=state.scene_graph)
 ```
 
 ---
 
 ## 2. Deterministic Camera Planning
 
-Generate cinematic camera framing procedurally.
-
-No LLM usage permitted.
+Generate cinematic camera framing procedurally. No LLM usage permitted.
 
 Camera placement derives from:
 
@@ -236,10 +285,6 @@ Camera placement derives from:
 - emotional intensity
 - environment scale
 - motion vectors
-
----
-
-## Example Shot Rules
 
 ```python
 if environment.scale == "large":
@@ -256,33 +301,15 @@ if dialogue_between_two_subjects:
 
 ## 3. Procedural Lighting Setup
 
-Generate:
-
-- key lights
-- fill lights
-- rim lights
-- environment lighting
-
-based on:
-
-- scene mood
-- time of day
-- emotional tone
-- environment metadata
+Generate key lights, fill lights, rim lights, and environment lighting based on scene mood, time of day, emotional tone, and environment metadata.
 
 ---
 
 ## 4. Viewport Rendering
 
-Generate:
+Generate OpenGL viewport renders, Blender Eevee previews, and thumbnail images.
 
-- OpenGL viewport renders
-- Blender Eevee previews
-- thumbnail images
-
-Example outputs:
-
-```text
+```
 /tmp/previs/frame_001.png
 /tmp/previs/frame_002.png
 ```
@@ -293,8 +320,6 @@ Example outputs:
 
 Build deterministic `Previsualization` schema object.
 
----
-
 ## Return
 
 ```python
@@ -304,55 +329,39 @@ return {
 }
 ```
 
+The graph then interrupts. Routing after the interrupt is determined by `generation_mode` (see D7).
+
 ---
 
-# D4 — Rendering Layer
+# D5 — Rendering Layer
 
 ## New File
 
-```text
+```
 apps/orchestrator/src/orchestrator/rendering/previs_renderer.py
 ```
 
-Encapsulates rendering logic.
-
----
-
-## Responsibilities
-
 ```python
 class PrevisRenderer:
-    def render_frame(...)
-    def render_sequence(...)
+    def render_frame(...): ...
+    def render_sequence(...): ...
 ```
 
----
+### Rendering Modes
 
-## Rendering Modes
+**Blender Eevee** — fast physically-aware previews.
 
-### Blender Eevee
-
-Fast physically-aware previews.
-
-### OpenGL Viewport
-
-Ultra-fast iteration previews.
+**OpenGL Viewport** — ultra-fast iteration previews.
 
 ---
 
-# D5 — Deterministic Camera Planning Engine
+# D6 — Deterministic Camera Planning Engine
 
 ## New File
 
-```text
+```
 apps/orchestrator/src/orchestrator/cinematics/camera_planner.py
 ```
-
-Generate deterministic cinematic shots.
-
----
-
-## Responsibilities
 
 ```python
 planner.generate_shots(
@@ -362,9 +371,7 @@ planner.generate_shots(
 )
 ```
 
----
-
-## Rules
+### Rules
 
 ```python
 if action_type == "conversation":
@@ -379,17 +386,15 @@ if emotional_intensity > 0.8:
 
 ---
 
-# D6 — Blender/OpenGL Runtime
+# D7 — Blender/OpenGL Runtime
 
 ## New File
 
-```text
+```
 apps/orchestrator/src/orchestrator/rendering/blender_runtime.py
 ```
 
----
-
-## Responsibilities
+Responsibilities:
 
 - launch headless Blender
 - execute generated DSL
@@ -397,147 +402,165 @@ apps/orchestrator/src/orchestrator/rendering/blender_runtime.py
 - export thumbnails
 - manage temporary scenes
 
----
-
-## Example Invocation
-
 ```bash
 blender -b previs.blend -P render_sequence.py
 ```
 
 ---
 
-# D7 — Export Node
+# D8 — Export Nodes
 
 ## Modify
 
-```text
+```
 apps/orchestrator/src/orchestrator/nodes/__init__.py
 ```
 
-Add export:
-
 ```python
-from .wireframe_previs_generator import (
-    wireframe_previs_generator_node,
-)
+from .generation_mode_parser import generation_mode_parser_node
+from .wireframe_previs_generator import wireframe_previs_generator_node
 ```
 
 ---
 
-# D8 — Graph Wiring
+# D9 — Graph Wiring
 
 ## Modify
 
-```text
+```
 apps/orchestrator/src/orchestrator/graph.py
 ```
 
----
-
-# Add New Node
+## Add New Nodes
 
 ```python
-g.add_node(
-    "wireframe_previs_generator",
-    wireframe_previs_generator_node
-)
+g.add_node("generation_mode_parser", generation_mode_parser_node)
+g.add_node("wireframe_previs_generator", wireframe_previs_generator_node)
 ```
 
----
-
-# Replace Existing Edge
+## Replace Existing Edges
 
 Replace:
 
-```text
+```
+intent_validator → semantic_locker
 scene_graph_generator → creative_dispatcher
 ```
 
-with:
+With:
 
-```text
+```
+intent_validator → generation_mode_parser → semantic_locker
 scene_graph_generator → wireframe_previs_generator
-wireframe_previs_generator → creative_dispatcher
 ```
 
----
+## Stage-Gate Router: After Wireframe Interrupt
 
-# Interrupt Configuration
+```python
+def route_after_wireframe(state: AgentState) -> str:
+    if state.execution_status == "previsualization_approved":
+        if state.generation_mode == GenerationMode.wireframe:
+            return END          # wireframe-only; pipeline halts
+        return "creative_dispatcher"
+    if state.execution_status == "previsualization_feedback":
+        return "wireframe_previs_generator"
+    return "scene_graph_generator"  # reject
 
-The graph must pause after previsualization generation.
+g.add_conditional_edges("wireframe_previs_generator", route_after_wireframe)
+```
+
+## Stage-Gate Router: After Model Interrupt
+
+```python
+def route_after_model(state: AgentState) -> str:
+    if state.execution_status == "model_approved":
+        if state.generation_mode == GenerationMode.model:
+            return END          # model-only; pipeline halts
+        return "physical_validation"
+    if state.execution_status == "model_feedback":
+        return "visual_generator"
+    return "wireframe_previs_generator"  # reject
+
+g.add_conditional_edges("visual_generator", route_after_model)
+```
+
+## Interrupt Configuration
 
 ```python
 interrupt_after = [
     "speculative_batcher",
-    "wireframe_previs_generator"
+    "wireframe_previs_generator",
+    "visual_generator",          # catches model-mode stage gate
 ]
 ```
 
-Previsualization approval is mandatory.
-
 ---
 
-# D9 — Approval API
+# D10 — Approval API
 
 ## Modify
 
-```text
+```
 apps/api/src/api/routes/approvals.py
 ```
 
-Add a new approval decision branch:
+## Wireframe Decision Branches
 
 ```python
-decision == "previsualization_approve"
+decision == "previsualization_approve"    # accept; continue to model/video
+decision == "previsualization_proceed"    # user clicked "Proceed to Model Generation" from wireframe-only halt
+decision == "previsualization_modify"     # revision notes; regenerate previs
+decision == "previsualization_reject"     # rewind to scene planning
 ```
 
----
+## Model Decision Branches
 
-# Approval Actions
+```python
+decision == "model_approve"               # accept; continue to video
+decision == "model_proceed"               # user clicked "Proceed to Video Generation" from model-only halt
+decision == "model_modify"                # revision notes; re-render model
+decision == "model_reject"               # rewind to wireframe
+```
 
----
+## Accept — Wireframe
 
-## Accept
+```python
+graph.update_state(
+    config,
+    {"execution_status": "previsualization_approved"},
+    as_node="wireframe_previs_generator"
+)
+```
+
+Router reads `generation_mode` to decide whether to halt or continue.
+
+## Proceed to Model — from Wireframe-Only Halt
+
+Upgrade `generation_mode` then resume:
 
 ```python
 graph.update_state(
     config,
     {
-        "execution_status": "previsualization_approved"
+        "generation_mode": "model",
+        "execution_status": "previsualization_approved",
     },
     as_node="wireframe_previs_generator"
 )
 ```
 
-Resume graph execution.
-
----
-
-## Modify
-
-Accept revision notes:
+## Modify — Wireframe
 
 ```json
-{
-  "action": "modify",
-  "notes": "camera framing too tight"
-}
+{ "action": "modify", "notes": "camera framing too tight" }
 ```
-
-Update:
 
 ```python
 previsualization_feedback = notes
+execution_status = "previsualization_feedback"
 ```
 
-Then regenerate previs from the same scene graph.
-
----
-
-## Reject
-
-Clear previs and rewind:
+## Reject — Wireframe
 
 ```python
 previsualization = None
@@ -545,90 +568,146 @@ scene_graph = None
 execution_status = "intent_validated"
 ```
 
-Return pipeline to scene planning.
+## Proceed to Video — from Model-Only Halt
+
+```python
+graph.update_state(
+    config,
+    {
+        "generation_mode": "video",
+        "execution_status": "model_approved",
+    },
+    as_node="visual_generator"
+)
+```
 
 ---
 
-# D10 — Frontend Types
+# D11 — Frontend Types
 
 ## Modify
 
-```text
+```
 apps/web/src/lib/types/agentState.d.ts
 ```
 
-Add:
-
 ```ts
-interface CameraTransform { ... }
+type GenerationMode = "wireframe" | "model" | "video"
 
-interface LightingInfo { ... }
+interface CameraTransform {
+    position: [number, number, number]
+    rotation: [number, number, number]
+    focal_length_mm: number
+}
 
-interface WireframeFrame { ... }
+interface LightingInfo {
+    key_light_direction: [number, number, number]
+    fill_intensity: number
+    rim_enabled: boolean
+}
 
-interface Previsualization { ... }
+interface WireframeFrame {
+    frame_index: number
+    time_start_s: number
+    time_end_s: number
+    camera: CameraTransform
+    lighting: LightingInfo
+    viewport_image_path: string
+    viewport_thumbnail_path: string
+    notes?: string
+}
+
+interface Previsualization {
+    frames: WireframeFrame[]
+    mood: string
+    palette_hint: string
+    render_engine: "blender_eevee" | "opengl"
+}
 ```
 
 Add to `AgentState`:
 
 ```ts
+generation_mode: GenerationMode
 previsualization?: Previsualization
+model_renders?: string[]
 ```
 
 ---
 
-# D11 — Approval UI
+# D12 — Approval UI
 
 ## Modify
 
-```text
+```
 apps/web/src/components/ControlPanel/ApprovalDialog.tsx
 ```
 
 ---
 
-# Activation Condition
+## Wireframe Approval Panel
+
+### Activation Condition
 
 ```ts
-state.execution_status === "previsualization_generated";
+state.execution_status === "previsualization_generated"
 ```
 
----
-
-# Render
-
-Display:
+### What to Render
 
 - wireframe thumbnails
 - viewport previews
 - frame timeline
-- camera metadata
-- focal lengths
+- camera metadata (focal length, position)
 - lighting information
 
----
+### Controls
 
-# Controls
+| Button | Visible when | Action |
+|---|---|---|
+| **Approve** | `generation_mode !== "wireframe"` | Continue to model generation |
+| **Proceed to Model Generation** | `generation_mode === "wireframe"` | Upgrades mode to `model`, resumes pipeline |
+| **Modify** | always | Submit revision notes, regenerate previs |
+| **Reject** | always | Rewind to scene planning |
 
-### Approve
-
-Continue generation pipeline.
-
-### Modify
-
-Submit revision notes and regenerate previs.
-
-### Reject
-
-Rewind to scene planning.
+When `generation_mode === "wireframe"`, Approve is hidden. The primary CTA is **Proceed to Model Generation** — the wireframe stage is terminal unless the user explicitly escalates.
 
 ---
 
-# D12 — Verification
+## Model Approval Panel
+
+### Activation Condition
+
+```ts
+state.execution_status === "model_generated"
+```
+
+### What to Render
+
+- wireframe thumbnails (collapsible reference)
+- 2D / 2.5D model renders (primary display)
+- scene metadata
+
+### Controls
+
+| Button | Visible when | Action |
+|---|---|---|
+| **Approve** | `generation_mode !== "model"` | Continue to video generation |
+| **Proceed to Video Generation** | `generation_mode === "model"` | Upgrades mode to `video`, resumes pipeline |
+| **Modify** | always | Submit revision notes, re-render model |
+| **Reject** | always | Rewind to wireframe approval |
+
+When `generation_mode === "model"`, Approve is hidden. The primary CTA is **Proceed to Video Generation** — the model stage is terminal unless the user explicitly escalates.
 
 ---
+
+# D13 — Verification
 
 ## Unit Tests
+
+### Generation Mode Parser
+
+Validate keyword → mode mapping for all three modes and edge cases (ambiguous input defaults to `video`).
 
 ### Camera Planner
 
@@ -650,78 +729,90 @@ Validate scene graph compilation.
 
 ## Integration Tests
 
-### Interrupt Test
+### Wireframe-Only Flow
 
-Validate graph pauses after:
+1. User requests "wireframe"
+2. `generation_mode_parser` sets `generation_mode = wireframe`
+3. Pipeline stops at `wireframe_previs_generator`
+4. UI shows wireframe thumbnails + **Proceed to Model Generation** button
+5. Approve button is hidden
+6. No model or video rendering triggered
 
-```python
-wireframe_previs_generator
-```
+### Model-Only Flow
 
----
+1. User requests "model"
+2. `generation_mode_parser` sets `generation_mode = model`
+3. Pipeline continues through `visual_generator`
+4. Stops at model interrupt
+5. UI shows wireframes + model renders + **Proceed to Video Generation** button
+6. Approve button is hidden
+7. No video rendering triggered
 
-## Approval Test
+### Full Video Flow
 
-Validate approval resumes:
+1. User requests video (default / no keyword match)
+2. `generation_mode_parser` sets `generation_mode = video`
+3. Pipeline runs to completion through both interrupts
+4. No intermediate halts at wireframe or model stage gates
 
-```python
-creative_dispatcher
-```
+### Wireframe → Escalate to Model
 
----
+1. User starts in wireframe mode, views wireframes
+2. Clicks **Proceed to Model Generation**
+3. API updates `generation_mode = model`, resumes graph
+4. Pipeline continues, halts at model stage
+5. UI transitions to model approval panel
 
-## Modify Test
+### Model → Escalate to Video
+
+1. User in model mode, views model renders
+2. Clicks **Proceed to Video Generation**
+3. API updates `generation_mode = video`, resumes graph
+4. Pipeline continues to final video
+
+### Wireframe Interrupt Test
+
+Validate graph pauses after `wireframe_previs_generator`.
+
+### Wireframe Approval Test
+
+Validate approval resumes `creative_dispatcher` when mode is not wireframe.
+
+### Wireframe Modify Test
 
 Validate previs regenerates while preserving canonical scene graph.
 
----
+### Wireframe Reject Test
 
-## Reject Test
+Validate pipeline rewinds to scene planning.
 
-Validate pipeline rewinds correctly.
+### Model Approval Test
+
+Validate model approval resumes `physical_validation` when mode is video.
+
+### Model Reject Test
+
+Validate pipeline rewinds to `wireframe_previs_generator`.
 
 ---
 
 # Critical Constraints
 
----
-
 ## No LLM Camera Generation
 
-Camera planning must remain deterministic.
-
-LLMs may optionally:
-
-- summarize mood
-- annotate shots
-- suggest alternates
-
-but must never define canonical framing.
-
----
+Camera planning must remain deterministic. LLMs may optionally summarize mood, annotate shots, or suggest alternates — but must never define canonical framing.
 
 ## Deterministic Output
 
-Same scene graph must always produce:
-
-- identical framing
-- identical lighting
-- identical shot layouts
-
-unless revision feedback changes planning inputs.
-
----
+Same scene graph must always produce identical framing, identical lighting, and identical shot layouts unless revision feedback changes planning inputs.
 
 ## Approval Must Validate Physical Reality
 
-Approval previews must reflect:
+Approval previews must reflect actual geometry, actual blocking, actual composition, and actual camera physics — not textual interpretation.
 
-- actual geometry
-- actual blocking
-- actual composition
-- actual camera physics
+## Stage Gates Are Opt-In Escalation Only
 
-not textual interpretation.
+The system must never auto-advance past a stage boundary. Escalation from wireframe → model → video requires explicit user action. Within a terminal mode, accepting/approving only submits approval feedback — it does not advance the pipeline depth.
 
 ---
 
@@ -735,5 +826,4 @@ After implementation, the orchestration system gains a true cinematic previsuali
 - approval-safe cinematic planning
 - reproducible framing
 - spatially accurate validation
-
-This upgrades the orchestration pipeline from a text-based AI workflow into a production-grade cinematic previs system with real visual validation before expensive generation begins.
+- staged generation depth controlled by the user — wireframe-only, model-only, or full video — with explicit opt-in escalation at each boundary
