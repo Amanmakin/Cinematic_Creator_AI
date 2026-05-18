@@ -87,6 +87,8 @@ temp/
 *.h5
 weights/
 checkpoints/
+docker/models/
+CACHEDIR.TAG
 
 # ─── Blender / render outputs ─────────────────────────────────────────────────
 *.blend1

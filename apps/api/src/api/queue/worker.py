@@ -23,7 +23,7 @@ _redis_settings = RedisSettings.from_dsn(_REDIS_URL)
 
 
 class VisualWorkerSettings:
-    """Handles Replicate / ComfyUI generation calls."""
+    """Handles local Docker generation calls."""
 
     functions = [generate_visual]
     redis_settings = _redis_settings
@@ -49,7 +49,7 @@ class ValidateWorkerSettings:
     redis_settings = _redis_settings
     queue_name = "arq:validate"
     max_jobs = int(os.environ.get("VALIDATE_CONCURRENCY", "8"))
-    job_timeout = 60
+    job_timeout = 600
 
 
 class CompressWorkerSettings:
@@ -59,4 +59,4 @@ class CompressWorkerSettings:
     redis_settings = _redis_settings
     queue_name = "arq:compress"
     max_jobs = 2
-    job_timeout = 120
+    job_timeout = 600

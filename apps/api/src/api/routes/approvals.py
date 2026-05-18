@@ -16,10 +16,27 @@ router = APIRouter()
 
 
 class ApprovalRequest(BaseModel):
-    decision: Literal["accept", "modify", "select_variant", "reject"]
+    decision: Literal[
+        # Legacy speculative / human-approval decisions
+        "accept",
+        "modify",
+        "select_variant",
+        "reject",
+        # Plan9 wireframe decisions
+        "previsualization_approve",
+        "previsualization_proceed",
+        "previsualization_modify",
+        "previsualization_reject",
+        # Plan9 model decisions
+        "model_approve",
+        "model_proceed",
+        "model_modify",
+        "model_reject",
+    ]
     modified_prompt: str | None = None
     variant_index: int | None = None
-    rejection_reason: str | None = None  # required when decision == "reject"
+    rejection_reason: str | None = None
+    notes: str | None = None  # revision notes for modify decisions
 
 
 @router.post("/{project_id}/approve")
@@ -34,8 +51,10 @@ async def approve(project_id: str, body: ApprovalRequest):
     if not snapshot or not snapshot.next:
         raise HTTPException(status_code=409, detail="No pending interrupt for this project")
 
+    # ------------------------------------------------------------------
+    # Legacy decisions (speculative / human-approval phase)
+    # ------------------------------------------------------------------
     if body.decision == "accept":
-        # Resume with execution_status cleared to proceed
         graph.update_state(config, {"execution_status": "intent_validated"}, as_node="intent_validator")
 
     elif body.decision == "modify":
@@ -65,8 +84,6 @@ async def approve(project_id: str, body: ApprovalRequest):
         reason = body.rejection_reason or ""
         current_values = snapshot.values
         prompt = current_values.get("user_prompt", "")
-        # Record rejection in memory tier asynchronously (fire-and-forget style is fine
-        # here; if the embed call fails we still want the graph reset to continue).
         try:
             rejection_id = await record_rejection(project_id, prompt, reason)
             await record_event(
@@ -75,10 +92,100 @@ async def approve(project_id: str, body: ApprovalRequest):
                 {"rejection_id": rejection_id, "prompt": prompt, "reason": reason},
             )
         except Exception:
-            pass  # don't block the user flow on memory write failures
-        # Reset the graph to idle so the user can provide a new prompt.
+            pass
         graph.update_state(config, {"execution_status": "idle"}, as_node="intent_validator")
         return {"status": "rejected", "reason": reason}
+
+    # ------------------------------------------------------------------
+    # Plan9 — Wireframe decisions
+    # ------------------------------------------------------------------
+    elif body.decision == "previsualization_approve":
+        # Accept wireframes; route_after_wireframe reads generation_mode to decide next node
+        graph.update_state(
+            config,
+            {"execution_status": "previsualization_approved"},
+            as_node="wireframe_previs_generator",
+        )
+
+    elif body.decision == "previsualization_proceed":
+        # User clicked "Proceed to Model Generation" from a wireframe-only halt — upgrade mode
+        graph.update_state(
+            config,
+            {
+                "generation_mode": "model",
+                "execution_status": "previsualization_approved",
+            },
+            as_node="wireframe_previs_generator",
+        )
+
+    elif body.decision == "previsualization_modify":
+        notes = body.notes or ""
+        if not notes:
+            raise HTTPException(status_code=422, detail="notes required for 'previsualization_modify' decision")
+        graph.update_state(
+            config,
+            {
+                "previsualization_feedback": notes,
+                "execution_status": "previsualization_feedback",
+            },
+            as_node="wireframe_previs_generator",
+        )
+
+    elif body.decision == "previsualization_reject":
+        graph.update_state(
+            config,
+            {
+                "previsualization": None,
+                "scene_graph": None,
+                "execution_status": "intent_validated",
+            },
+            as_node="wireframe_previs_generator",
+        )
+
+    # ------------------------------------------------------------------
+    # Plan9 — Model decisions
+    # ------------------------------------------------------------------
+    elif body.decision == "model_approve":
+        # Accept model renders; route_after_model reads generation_mode to decide next node
+        graph.update_state(
+            config,
+            {"execution_status": "model_approved"},
+            as_node="visual_generator",
+        )
+
+    elif body.decision == "model_proceed":
+        # User clicked "Proceed to Video Generation" from a model-only halt — upgrade mode
+        graph.update_state(
+            config,
+            {
+                "generation_mode": "video",
+                "execution_status": "model_approved",
+            },
+            as_node="visual_generator",
+        )
+
+    elif body.decision == "model_modify":
+        notes = body.notes or ""
+        if not notes:
+            raise HTTPException(status_code=422, detail="notes required for 'model_modify' decision")
+        graph.update_state(
+            config,
+            {
+                "model_feedback": notes,
+                "execution_status": "model_feedback",
+            },
+            as_node="visual_generator",
+        )
+
+    elif body.decision == "model_reject":
+        graph.update_state(
+            config,
+            {
+                "model_renders": None,
+                "execution_status": "previsualization_approved",
+            },
+            as_node="visual_generator",
+        )
 
     async def resume_stream() -> AsyncGenerator[dict, None]:
         loop = asyncio.get_event_loop()

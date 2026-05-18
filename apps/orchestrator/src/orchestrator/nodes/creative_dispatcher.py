@@ -51,7 +51,7 @@ def creative_dispatcher_node(state: AgentState) -> dict:
                         "remove_background": True,
                     },
                     seed=rng.randint(0, 2**31),
-                    adapter_hint="replicate.sdxl",
+                    adapter_hint="local.sdxl",
                 )
             )
             events.append(
@@ -80,7 +80,7 @@ def creative_dispatcher_node(state: AgentState) -> dict:
                         "style": "photorealistic",
                     },
                     seed=rng.randint(0, 2**31),
-                    adapter_hint="replicate.sdxl",
+                    adapter_hint="local.sdxl",
                 )
             )
             events.append(

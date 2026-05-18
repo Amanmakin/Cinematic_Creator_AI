@@ -71,7 +71,7 @@ class CreativeIntent(BaseModel):
     target_path: str
     parameters: dict[str, Any]
     seed: int
-    adapter_hint: str | None = "replicate.sdxl"
+    adapter_hint: str | None = "local.sdxl"
 
 
 class AssetRef(BaseModel):

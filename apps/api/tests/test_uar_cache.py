@@ -10,7 +10,7 @@ from orchestrator.schemas.creative import AssetRef, CreativeIntent, ProviderPayl
 
 
 # ---------------------------------------------------------------------------
-# Fake adapter — never actually calls Replicate
+# Fake adapter — never calls the local Docker service
 # ---------------------------------------------------------------------------
 class _FakeAdapter:
     name = "fake"

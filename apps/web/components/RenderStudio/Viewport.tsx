@@ -6,6 +6,7 @@ import { OrbitControls } from "@react-three/drei";
 import CameraRig from "./CameraRig";
 import GltfScene from "./GltfScene";
 import ControlsOverlay from "./ControlsOverlay";
+import StageLoadingOverlay from "./StageLoadingOverlay";
 import { useProjectStore } from "@/state/projectStore";
 import type { OtOp } from "@/lib/sceneGraph/diff";
 
@@ -49,6 +50,9 @@ export default function Viewport({ glbUrl }: ViewportProps) {
           <OrbitControls makeDefault />
         </Suspense>
       </Canvas>
+
+      {/* Phase loading overlay */}
+      <StageLoadingOverlay />
 
       {/* HUD overlay */}
       <div className="absolute top-3 right-3 pointer-events-auto">

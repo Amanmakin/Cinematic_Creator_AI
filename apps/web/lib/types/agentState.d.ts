@@ -3,6 +3,8 @@
 
 export type AspectRatio = "9:16" | "16:9" | "1:1" | "4:5";
 
+export type GenerationMode = "wireframe" | "model" | "video";
+
 export type ExecutionStage =
   | "idle"
   | "intent_validated"
@@ -10,9 +12,54 @@ export type ExecutionStage =
   | "speculative_batching"
   | "semantic_lock_applied"
   | "scene_graph_generated"
+  | "previsualization_generated"
+  | "previsualization_approved"
+  | "previsualization_feedback"
+  | "model_generated"
+  | "model_approved"
+  | "model_feedback"
+  | "creative_dispatching"
+  | "visual_generating"
+  | "budget_exceeded"
   | "physical_validation_failed"
+  | "dsl_compiled"
+  | "dsl_validation_failed"
+  | "gltf_assembled"
+  | "render_progress"
+  | "render_timed_out"
+  | "render_completed"
   | "completed"
   | "failed";
+
+export interface CameraTransform {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  focal_length_mm: number;
+}
+
+export interface LightingInfo {
+  key_light_direction: [number, number, number];
+  fill_intensity: number;
+  rim_enabled: boolean;
+}
+
+export interface WireframeFrame {
+  frame_index: number;
+  time_start_s: number;
+  time_end_s: number;
+  camera: CameraTransform;
+  lighting: LightingInfo;
+  viewport_image_path: string;
+  viewport_thumbnail_path: string;
+  notes?: string;
+}
+
+export interface Previsualization {
+  frames: WireframeFrame[];
+  mood: string;
+  palette_hint: string;
+  render_engine: "blender_eevee" | "opengl";
+}
 
 export interface ProjectCanon {
   aspect_ratio: AspectRatio;
@@ -111,6 +158,9 @@ export interface AgentState {
   execution_status: ExecutionStage;
   retry_count: number;
   error_log: string[];
+  generation_mode: GenerationMode;
+  previsualization?: Previsualization;
+  model_renders?: string[];
 }
 
 export interface StateCheckpoint {

@@ -1,4 +1,4 @@
-"""arq task: visual asset generation via the configured adapter (Replicate / ComfyUI)."""
+"""arq task: visual asset generation via the configured adapter."""
 
 from __future__ import annotations
 
@@ -20,10 +20,15 @@ async def generate_visual(
     budget_amount: int,
 ) -> dict:
     """Generate a visual asset via the adapter and commit/refund the budget token."""
-    from api.adapters.replicate_adapter import ReplicateAdapter
+    from api.adapters.hybrid_adapter import HybridAdapter
 
     ledger = BudgetLedger(db_path=settings.db_path)
-    adapter = ReplicateAdapter(api_key=settings.replicate_api_key)
+    adapter = HybridAdapter(
+        strategy=settings.generation_strategy,
+        docker_base_url=settings.docker_diffusers_url,
+        timeout_local=float(settings.generation_timeout_local),
+        use_smaller_model=settings.use_smaller_models_locally,
+    )
 
     await inflight_increment(project_id)
     await record_event(

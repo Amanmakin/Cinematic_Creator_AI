@@ -27,7 +27,7 @@ _FAKE_ASSET = AssetRef(asset_id="abc123", adapter="local_diffusers", adapter_ver
 
 @pytest.mark.asyncio
 async def test_local_fallback_uses_local_when_available():
-    adapter = HybridAdapter(api_key="dummy", strategy="local_fallback")
+    adapter = HybridAdapter(strategy="local_fallback")
 
     with (
         patch.object(adapter._local, "health_check", AsyncMock(return_value=True)),
@@ -43,7 +43,7 @@ async def test_local_fallback_uses_local_when_available():
 
 @pytest.mark.asyncio
 async def test_local_only_succeeds():
-    adapter = HybridAdapter(api_key="dummy", strategy="local_only")
+    adapter = HybridAdapter(strategy="local_only")
 
     with (
         patch.object(adapter._local, "health_check", AsyncMock(return_value=True)),
@@ -54,19 +54,3 @@ async def test_local_only_succeeds():
         result = await adapter.execute(payload)
 
     assert result.adapter == "local_diffusers"
-
-
-@pytest.mark.asyncio
-async def test_replicate_only_skips_local():
-    adapter = HybridAdapter(api_key="dummy", strategy="replicate_only")
-    rep_asset = AssetRef(asset_id="rep999", adapter="replicate", adapter_version="1.0.0")
-
-    with (
-        patch.object(adapter._replicate, "execute", AsyncMock(return_value=rep_asset)),
-        patch("api.adapters.hybrid_adapter._record_generation", AsyncMock()),
-    ):
-        payload = adapter.translate(_INTENT, _Ctx())
-        result = await adapter.execute(payload)
-
-    assert result.asset_id == "rep999"
-    assert result.adapter == "replicate"

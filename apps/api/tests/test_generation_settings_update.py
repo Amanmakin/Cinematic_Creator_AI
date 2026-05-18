@@ -13,8 +13,7 @@ async def test_get_settings_returns_global_defaults_when_no_override(client):
     res = await client.get(f"/projects/{project_id}/generation-settings")
     assert res.status_code == 200
     data = res.json()
-    # Should return global defaults (local_fallback as set in conftest env)
-    assert data["strategy"] in {"local_fallback", "replicate_only", "local_only", "replicate_fallback"}
+    assert data["strategy"] in {"local_fallback", "local_only"}
     assert "use_smaller_models" in data
 
 
@@ -24,18 +23,17 @@ async def test_patch_settings_persists(client):
     project_id = res.json()["project_id"]
 
     patch_body = {
-        "strategy": "replicate_only",
+        "strategy": "local_only",
         "use_smaller_models": False,
         "timeout_local_sec": 90,
-        "timeout_replicate_sec": 60,
     }
     res = await client.patch(f"/projects/{project_id}/generation-settings", json=patch_body)
     assert res.status_code == 200
-    assert res.json()["strategy"] == "replicate_only"
+    assert res.json()["strategy"] == "local_only"
 
     # Fetch again to verify persistence
     res = await client.get(f"/projects/{project_id}/generation-settings")
-    assert res.json()["strategy"] == "replicate_only"
+    assert res.json()["strategy"] == "local_only"
     assert res.json()["use_smaller_models"] is False
     assert res.json()["timeout_local_sec"] == 90
 
@@ -48,7 +46,7 @@ async def test_patch_settings_rejects_invalid_strategy(client):
     res = await client.patch(
         f"/projects/{project_id}/generation-settings",
         json={"strategy": "galaxy_brain", "use_smaller_models": True,
-              "timeout_local_sec": 180, "timeout_replicate_sec": 120},
+              "timeout_local_sec": 180},
     )
     assert res.status_code == 422
 
@@ -70,4 +68,3 @@ async def test_stats_returns_zeros_before_any_generations(client):
     assert data["total_generations"] == 0
     assert data["total_cost_usd"] == 0.0
     assert data["local_count"] == 0
-    assert data["replicate_count"] == 0

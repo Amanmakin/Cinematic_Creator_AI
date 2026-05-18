@@ -204,7 +204,7 @@ def make_llm(model: str | None = None, temperature: float = 0.2):
 
     resolved_model = model or _config["model"] or DEFAULT_MODEL
     base_url = _config["base_url"] or None
-    kwargs: dict = {"model": resolved_model, "temperature": temperature, "timeout": 60}
+    kwargs: dict = {"model": resolved_model, "temperature": temperature, "timeout": 600}
     if base_url:
         kwargs["base_url"] = base_url
         # Local endpoints (Ollama etc.) don't need a real key but the client requires one.

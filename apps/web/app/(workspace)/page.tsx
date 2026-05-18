@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import ApprovalDialog from "@/components/ControlPanel/ApprovalDialog";
 import BudgetIndicator from "@/components/ControlPanel/BudgetIndicator";
 import LockManager from "@/components/ControlPanel/LockManager";
+import PhaseStatusBar from "@/components/ControlPanel/PhaseStatusBar";
 import PromptComposer from "@/components/ControlPanel/PromptComposer";
 import Timeline from "@/components/ControlPanel/Timeline";
 import Viewport from "@/components/RenderStudio/Viewport";
@@ -32,7 +33,9 @@ export default function WorkspacePage() {
 
   const needsApproval =
     agentState?.execution_status === "awaiting_human_approval" ||
-    agentState?.execution_status === "speculative_batching";
+    agentState?.execution_status === "speculative_batching" ||
+    agentState?.execution_status === "previsualization_generated" ||
+    agentState?.execution_status === "model_generated";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -40,6 +43,7 @@ export default function WorkspacePage() {
       <aside className="w-[420px] flex-shrink-0 flex flex-col gap-4 p-4 bg-panel border-r border-border overflow-y-auto">
         <h1 className="text-lg font-semibold text-accent">CinematicVideoCreator</h1>
         <PromptComposer />
+        <PhaseStatusBar />
         <Timeline />
         <LockManager />
         <BudgetIndicator />

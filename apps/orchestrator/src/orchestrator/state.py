@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -6,6 +7,7 @@ from orchestrator.schemas.canon import ProjectCanon
 from orchestrator.schemas.creative import CreativeIntent, LayerAsset
 from orchestrator.schemas.dsl import BlenderDsl
 from orchestrator.schemas.intent import IntentSpec
+from orchestrator.schemas.previsualization import Previsualization
 
 ExecutionStage = Literal[
     "idle",
@@ -14,6 +16,13 @@ ExecutionStage = Literal[
     "speculative_batching",
     "semantic_lock_applied",
     "scene_graph_generated",
+    # Plan9 previsualization stages
+    "previsualization_generated",
+    "previsualization_approved",
+    "previsualization_feedback",
+    "model_generated",
+    "model_approved",
+    "model_feedback",
     "creative_dispatching",
     "visual_generating",
     "budget_exceeded",
@@ -28,6 +37,12 @@ ExecutionStage = Literal[
     "completed",
     "failed",
 ]
+
+
+class GenerationMode(str, Enum):
+    wireframe = "wireframe"
+    model = "model"
+    video = "video"
 
 CreativeEventKind = Literal[
     "CreativeIntentDispatched",
@@ -76,3 +91,9 @@ class AgentState(BaseModel):
     creative_intents: list[CreativeIntent] = Field(default_factory=list)
     generated_assets: list[LayerAsset] = Field(default_factory=list)
     creative_events: list[CreativeEvent] = Field(default_factory=list)
+    # Plan9 staged generation fields
+    generation_mode: GenerationMode = GenerationMode.video
+    previsualization: Previsualization | None = None
+    previsualization_feedback: str | None = None
+    model_renders: list[str] | None = None
+    model_feedback: str | None = None
