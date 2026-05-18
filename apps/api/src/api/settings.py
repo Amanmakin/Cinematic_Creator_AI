@@ -27,5 +27,11 @@ class Settings(BaseSettings):
     use_smaller_models_locally: bool = True
     """Use SD1.5 instead of SDXL on Mac/CPU (faster, lower quality)"""
 
+    # Blender / previsualization
+    blender_path: str = "/Applications/Blender.app/Contents/MacOS/blender"
+    """Path to Blender executable. Falls back to 'blender' on PATH if this doesn't exist."""
+    previs_output_dir: str = "previs_renders"
+    """Directory where wireframe previs PNGs are written (served at /previs)."""
+
 
 settings = Settings()

@@ -1,5 +1,7 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -8,6 +10,7 @@ load_dotenv()  # populate os.environ from .env before any LLM client is construc
 logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.dag.reducers import init_dag_tables
@@ -69,3 +72,8 @@ app.include_router(style_router, prefix="/projects", tags=["style"])
 app.include_router(generation_settings_router, prefix="/projects", tags=["generation"])
 app.include_router(llm_settings_router, tags=["llm"])
 app.include_router(ws_router)
+
+# Serve wireframe previs PNGs at /previs/<project_id>/frame_*.png
+_previs_dir = Path(os.environ.get("PREVIS_OUTPUT_DIR", "previs_renders"))
+_previs_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/previs", StaticFiles(directory=str(_previs_dir)), name="previs")

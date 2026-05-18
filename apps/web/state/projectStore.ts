@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as api from "@/lib/api";
+import type { ApproveDecision, ApproveOpts } from "@/lib/api";
 import { createProjectSocket } from "@/lib/ws";
 import { diffSceneGraph } from "@/lib/sceneGraph/diff";
 import type { AgentState, BlenderDsl, ProjectCanon, StateCheckpoint } from "@/lib/types/agentState";
@@ -27,10 +28,7 @@ interface ProjectState {
   setProjectId: (id: string) => void;
   connect: () => void;
   submitPrompt: (prompt: string) => Promise<void>;
-  approve: (
-    decision: "accept" | "modify" | "select_variant",
-    opts?: { modified_prompt?: string; variant_index?: number },
-  ) => Promise<void>;
+  approve: (decision: ApproveDecision, opts?: ApproveOpts) => Promise<void>;
   addLock: (path: string, reason: string, asset_id?: string) => Promise<void>;
   removeLock: (path: string) => Promise<void>;
   forkTo: (checkpointId: string) => Promise<void>;

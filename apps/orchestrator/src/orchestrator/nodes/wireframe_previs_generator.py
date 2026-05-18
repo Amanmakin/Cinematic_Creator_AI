@@ -6,11 +6,16 @@ No LLM calls permitted in this node.
 
 from __future__ import annotations
 
+import os
+
 from orchestrator.cinematics.camera_planner import CameraPlanner, PlannerConfig
 from orchestrator.node_logger import node_step
 from orchestrator.rendering.previs_renderer import PrevisRenderer
 from orchestrator.schemas.previsualization import Previsualization
 from orchestrator.state import AgentState
+
+_DEFAULT_BLENDER = "/Applications/Blender.app/Contents/MacOS/blender"
+_DEFAULT_OUTPUT  = "previs_renders"
 
 
 def _infer_mood(state: AgentState) -> str:
@@ -39,6 +44,9 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
     assert state.scene_graph is not None, "wireframe_previs_generator requires scene_graph"
     assert state.intent is not None, "wireframe_previs_generator requires validated intent"
 
+    blender_path = os.environ.get("BLENDER_PATH", _DEFAULT_BLENDER)
+    output_dir   = os.environ.get("PREVIS_OUTPUT_DIR", _DEFAULT_OUTPUT)
+
     with node_step(
         "wireframe_previs_generator",
         generation_mode=state.generation_mode.value,
@@ -53,10 +61,14 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
         planner = CameraPlanner()
         shots = planner.generate_shots(state.scene_graph, config=planner_config)
 
-        renderer = PrevisRenderer(engine="blender_eevee")
-        frames = renderer.render_sequence(shots)
+        renderer = PrevisRenderer(
+            output_dir=output_dir,
+            project_id=state.project_id,
+            blender_path=blender_path,
+        )
+        frames = renderer.render_sequence(shots, scene_graph=state.scene_graph)
 
-        mood = _infer_mood(state)
+        mood         = _infer_mood(state)
         palette_hint = _infer_palette_hint(state)
 
         result = Previsualization(
@@ -75,6 +87,5 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
         return {
             "previsualization": result,
             "execution_status": "previsualization_generated",
-            # Clear prior feedback once regenerated
             "previsualization_feedback": None,
         }

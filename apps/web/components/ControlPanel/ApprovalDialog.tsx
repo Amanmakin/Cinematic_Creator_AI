@@ -4,6 +4,13 @@ import { useState } from "react";
 import { useProjectStore } from "@/state/projectStore";
 import type { BlenderDsl, WireframeFrame } from "@/lib/types/agentState";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+function previsUrl(path: string): string {
+  // path is already a full URL if it starts with http, otherwise it's /previs/...
+  return path.startsWith("http") ? path : `${API_BASE}${path}`;
+}
+
 // ─── Wireframe Approval Panel ──────────────────────────────────────────────
 
 function WireframePanel() {
@@ -34,7 +41,7 @@ function WireframePanel() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={frame.viewport_thumbnail_path}
+                src={previsUrl(frame.viewport_thumbnail_path)}
                 alt={`Frame ${frame.frame_index}`}
                 className="w-full h-24 object-cover"
               />
@@ -61,32 +68,29 @@ function WireframePanel() {
       />
 
       <div className="flex gap-2">
-        {/* Approve — hidden when mode is wireframe-only */}
-        {!isWireframeMode && (
-          <button
-            className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
-            disabled={isRunning}
-            onClick={() => approve("previsualization_approve" as never)}
-          >
-            Approve
-          </button>
-        )}
+        <button
+          className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+          disabled={isRunning}
+          onClick={() => approve("previsualization_approve")}
+        >
+          {isWireframeMode ? "Accept Wireframes" : "Approve"}
+        </button>
 
-        {/* Proceed to Model Generation — shown only when mode is wireframe */}
+        {/* Make Model — additional option when mode is wireframe-only */}
         {isWireframeMode && (
           <button
-            className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+            className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
             disabled={isRunning}
-            onClick={() => approve("previsualization_proceed" as never)}
+            onClick={() => approve("previsualization_proceed")}
           >
-            Proceed to Model Generation
+            Make Model
           </button>
         )}
 
         <button
           className="flex-1 bg-surface border border-border hover:border-accent disabled:opacity-40 text-slate-200 text-sm rounded-md py-2 transition-colors"
           disabled={isRunning || !notes.trim()}
-          onClick={() => approve("previsualization_modify" as never, { notes: notes.trim() })}
+          onClick={() => approve("previsualization_modify", { notes: notes.trim() })}
         >
           Modify
         </button>
@@ -94,7 +98,7 @@ function WireframePanel() {
         <button
           className="flex-1 bg-red-900/40 border border-red-700/50 hover:border-red-500 disabled:opacity-40 text-red-300 text-sm rounded-md py-2 transition-colors"
           disabled={isRunning}
-          onClick={() => approve("previsualization_reject" as never)}
+          onClick={() => approve("previsualization_reject")}
         >
           Reject
         </button>
@@ -160,7 +164,7 @@ function ModelPanel() {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={frame.viewport_thumbnail_path}
+                    src={previsUrl(frame.viewport_thumbnail_path)}
                     alt={`Frame ${frame.frame_index}`}
                     className="w-full h-20 object-cover"
                   />
@@ -180,32 +184,29 @@ function ModelPanel() {
       />
 
       <div className="flex gap-2">
-        {/* Approve — hidden when mode is model-only */}
-        {!isModelMode && (
-          <button
-            className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
-            disabled={isRunning}
-            onClick={() => approve("model_approve" as never)}
-          >
-            Approve
-          </button>
-        )}
+        <button
+          className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+          disabled={isRunning}
+          onClick={() => approve("model_approve")}
+        >
+          {isModelMode ? "Accept Models" : "Approve"}
+        </button>
 
-        {/* Proceed to Video Generation — shown only when mode is model */}
+        {/* Make Video — additional option when mode is model-only */}
         {isModelMode && (
           <button
-            className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+            className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
             disabled={isRunning}
-            onClick={() => approve("model_proceed" as never)}
+            onClick={() => approve("model_proceed")}
           >
-            Proceed to Video Generation
+            Make Video
           </button>
         )}
 
         <button
           className="flex-1 bg-surface border border-border hover:border-accent disabled:opacity-40 text-slate-200 text-sm rounded-md py-2 transition-colors"
           disabled={isRunning || !notes.trim()}
-          onClick={() => approve("model_modify" as never, { notes: notes.trim() })}
+          onClick={() => approve("model_modify", { notes: notes.trim() })}
         >
           Modify
         </button>
@@ -213,7 +214,7 @@ function ModelPanel() {
         <button
           className="flex-1 bg-red-900/40 border border-red-700/50 hover:border-red-500 disabled:opacity-40 text-red-300 text-sm rounded-md py-2 transition-colors"
           disabled={isRunning}
-          onClick={() => approve("model_reject" as never)}
+          onClick={() => approve("model_reject")}
         >
           Reject
         </button>

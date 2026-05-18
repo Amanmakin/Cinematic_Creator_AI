@@ -41,10 +41,29 @@ export async function submitRun(
   await consumeSse(res, onChunk);
 }
 
+export type ApproveDecision =
+  | "accept"
+  | "modify"
+  | "select_variant"
+  | "previsualization_approve"
+  | "previsualization_proceed"
+  | "previsualization_modify"
+  | "previsualization_reject"
+  | "model_approve"
+  | "model_proceed"
+  | "model_modify"
+  | "model_reject";
+
+export interface ApproveOpts {
+  modified_prompt?: string;
+  variant_index?: number;
+  notes?: string;
+}
+
 export async function approve(
   projectId: string,
-  decision: "accept" | "modify" | "select_variant",
-  opts?: { modified_prompt?: string; variant_index?: number },
+  decision: ApproveDecision,
+  opts?: ApproveOpts,
   onChunk?: (state: Partial<AgentState>) => void,
 ): Promise<void> {
   const res = await fetch(`${BASE}/projects/${projectId}/approve`, {
