@@ -92,7 +92,7 @@ class AgentState(BaseModel):
     generated_assets: list[LayerAsset] = Field(default_factory=list)
     creative_events: list[CreativeEvent] = Field(default_factory=list)
     # Plan9 staged generation fields
-    generation_mode: GenerationMode = GenerationMode.video
+    generation_mode: str = GenerationMode.video  # stored as plain str so SqliteSaver can serialize it
     previsualization: Previsualization | None = None
     previsualization_feedback: str | None = None
     model_renders: list[str] | None = None

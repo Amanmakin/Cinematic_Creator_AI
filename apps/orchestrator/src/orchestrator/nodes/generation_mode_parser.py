@@ -18,4 +18,4 @@ def generation_mode_parser_node(state: AgentState) -> dict:
     assert state.intent is not None, "generation_mode_parser requires a validated intent"
     prompt = state.user_prompt
     mode = parse_generation_mode(prompt)
-    return {"generation_mode": mode}
+    return {"generation_mode": mode.value}  # store as plain str, not enum

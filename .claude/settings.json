@@ -56,7 +56,13 @@
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_wait_for",
-      "mcp__playwright__browser_snapshot"
+      "mcp__playwright__browser_snapshot",
+      "Read(//tmp/previs_test2/**)",
+      "Read(//private/tmp/previs_test2/**)",
+      "Read(//tmp/previs_chair/**)",
+      "Read(//private/tmp/previs_chair/**)",
+      "Read(//tmp/previs_car/**)",
+      "Read(//private/tmp/previs_car/**)"
     ]
   }
 }

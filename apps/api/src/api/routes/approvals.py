@@ -55,14 +55,19 @@ async def approve(project_id: str, body: ApprovalRequest):
     # Legacy decisions (speculative / human-approval phase)
     # ------------------------------------------------------------------
     if body.decision == "accept":
-        graph.update_state(config, {"execution_status": "intent_validated"}, as_node="intent_validator")
+        # Force ambiguity_score to 0 so route_after_intent returns "proceed", not "human_approval" again
+        graph.update_state(
+            config,
+            {"execution_status": "intent_validated", "ambiguity_score": 0.0},
+            as_node="intent_validator",
+        )
 
     elif body.decision == "modify":
         if not body.modified_prompt:
             raise HTTPException(status_code=422, detail="modified_prompt required for 'modify' decision")
         graph.update_state(
             config,
-            {"user_prompt": body.modified_prompt, "execution_status": "intent_validated"},
+            {"user_prompt": body.modified_prompt, "execution_status": "intent_validated", "ambiguity_score": 0.0},
             as_node="intent_validator",
         )
 
@@ -74,10 +79,18 @@ async def approve(project_id: str, body: ApprovalRequest):
         if body.variant_index >= len(variants):
             raise HTTPException(status_code=422, detail="variant_index out of range")
         chosen = variants[body.variant_index]
+        # Update as scene_graph_generator so the graph resumes along the edge
+        # scene_graph_generator → wireframe_previs_generator (not speculative_batcher → END).
+        # generation_mode_parser is skipped in the speculative path, so set it explicitly.
         graph.update_state(
             config,
-            {"scene_graph": chosen, "speculative_variants": []},
-            as_node="speculative_batcher",
+            {
+                "scene_graph": chosen,
+                "speculative_variants": [],
+                "execution_status": "scene_graph_generated",
+                "generation_mode": "video",
+            },
+            as_node="scene_graph_generator",
         )
 
     elif body.decision == "reject":

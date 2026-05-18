@@ -13,6 +13,24 @@ from orchestrator.cinematics.camera_planner import PlannedShot
 from orchestrator.rendering.blender_runtime import BlenderRuntime
 from orchestrator.schemas.dsl import BlenderDsl
 from orchestrator.schemas.previsualization import CameraTransform, LightingInfo, WireframeFrame
+from orchestrator.schemas.wire_geometry import WireframeGeometry
+
+
+def _primitives_from_geometry(geo: WireframeGeometry) -> list[dict]:
+    return [
+        {
+            "kind":   p.kind,
+            "label":  p.label,
+            "x": p.x, "y": p.y, "z": p.z,
+            "width":  p.width,
+            "depth":  p.depth,
+            "height": p.height,
+            "rot_x":  p.rot_x,
+            "rot_y":  p.rot_y,
+            "rot_z":  p.rot_z,
+        }
+        for p in geo.primitives
+    ]
 
 
 def _subjects_from_scene(scene_graph: BlenderDsl) -> list[dict]:
@@ -46,7 +64,12 @@ class PrevisRenderer:
     def _url(self, filename: str) -> str:
         return f"{self.url_prefix}/{self.project_id}/{filename}"
 
-    def render_frame(self, shot: PlannedShot, subjects: list[dict] | None = None) -> WireframeFrame:
+    def render_frame(
+        self,
+        shot: PlannedShot,
+        subjects: list[dict] | None = None,
+        primitives: list[dict] | None = None,
+    ) -> WireframeFrame:
         image_path, thumb_path = self._runtime.render_frame(
             frame_index=shot.frame_index,
             camera_position=shot.position,
@@ -57,6 +80,7 @@ class PrevisRenderer:
             rim_enabled=shot.rim_enabled,
             resolution=self.resolution,
             subjects=subjects,
+            primitives=primitives,
         )
         # Store URL paths, not filesystem paths
         frame_filename = f"frame_{shot.frame_index:03d}.png"
@@ -84,6 +108,11 @@ class PrevisRenderer:
         self,
         shots: list[PlannedShot],
         scene_graph: BlenderDsl | None = None,
+        wire_geometry: WireframeGeometry | None = None,
     ) -> list[WireframeFrame]:
         subjects = _subjects_from_scene(scene_graph) if scene_graph else None
-        return [self.render_frame(shot, subjects=subjects) for shot in shots]
+        primitives = _primitives_from_geometry(wire_geometry) if wire_geometry else None
+        return [
+            self.render_frame(shot, subjects=subjects, primitives=primitives)
+            for shot in shots
+        ]
