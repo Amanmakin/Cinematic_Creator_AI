@@ -31,3 +31,5 @@ class Previsualization(BaseModel):
     mood: str
     palette_hint: str
     render_engine: Literal["blender_eevee", "opengl"]
+    wireframe_sheet_path: str | None = None
+    wireframe_glb_path: str | None = None

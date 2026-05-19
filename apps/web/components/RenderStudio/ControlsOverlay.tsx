@@ -52,11 +52,11 @@ function Slider({ label, path, value, min, max, step, locked, onChange }: Slider
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex justify-between items-center">
-        <label className="text-[11px] text-zinc-400 font-medium">{label}</label>
+        <label className="text-[11px] text-zinc-300 font-medium">{label}</label>
         {locked && (
-          <span className="text-[10px] text-amber-500 font-semibold">LOCKED</span>
+          <span className="text-[10px] text-amber-400 font-semibold">LOCKED</span>
         )}
-        <span className="text-[11px] text-zinc-300 tabular-nums">{value.toFixed(1)}</span>
+        <span className="text-[11px] text-zinc-200 tabular-nums">{value.toFixed(1)}</span>
       </div>
       <input
         type="range"
@@ -66,7 +66,7 @@ function Slider({ label, path, value, min, max, step, locked, onChange }: Slider
         value={value}
         disabled={locked}
         onChange={(e) => onChange(path, parseFloat(e.target.value))}
-        className={`w-full h-1 rounded accent-indigo-500 ${locked ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+        className={`w-full h-1 rounded accent-indigo-400 ${locked ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
       />
     </div>
   );
@@ -90,7 +90,7 @@ export default function ControlsOverlay({
 
   if (!graph) {
     return (
-      <div className="text-xs text-zinc-500 italic p-3">
+      <div className="text-xs text-zinc-400 italic p-3">
         No scene graph — run a prompt first.
       </div>
     );
@@ -100,15 +100,15 @@ export default function ControlsOverlay({
   const lights = graph.scene.lights;
 
   return (
-    <div className="flex flex-col gap-4 p-3 bg-zinc-900/80 backdrop-blur rounded-lg border border-zinc-700 text-sm min-w-[220px]">
+    <div className="flex flex-col gap-4 p-3 bg-zinc-900/90 backdrop-blur rounded-lg border border-zinc-600 text-sm min-w-[220px]">
       {/* Camera */}
       <section>
-        <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Camera</h3>
+        <h3 className="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-2">Camera</h3>
 
         <div className="mb-2">
-          <label className="text-[11px] text-zinc-400 mb-1 block">Lens</label>
+          <label className="text-[11px] text-zinc-300 mb-1 block">Lens</label>
           <select
-            className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 disabled:opacity-40"
+            className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-xs text-zinc-100 disabled:opacity-40"
             value={LENS_OPTIONS.find((o) => Math.abs(o.value - cam.focal_mm) < 2)?.value ?? cam.focal_mm}
             disabled={isPathLocked("scene.camera.focal_mm", lockedPaths)}
             onChange={(e) => commit("scene.camera.focal_mm", parseFloat(e.target.value))}
@@ -136,7 +136,7 @@ export default function ControlsOverlay({
       {/* Lights */}
       {lights.length > 0 && (
         <section>
-          <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Lights</h3>
+          <h3 className="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-2">Lights</h3>
           <div className="flex flex-col gap-3">
             {lights.map((light, i) => (
               <Slider

@@ -2,13 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useProjectStore } from "@/state/projectStore";
-import type { BlenderDsl, WireframeFrame } from "@/lib/types/agentState";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-function previsUrl(path: string): string {
-  return path.startsWith("http") ? path : `${API_BASE}${path}`;
-}
+import type { BlenderDsl } from "@/lib/types/agentState";
 
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   useEffect(() => {
@@ -45,12 +39,13 @@ function SpeculativePanel() {
   const { agentState, approve, isRunning } = useProjectStore();
   const [customText, setCustomText] = useState("");
   const [showCustom, setShowCustom] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   if (!agentState) return null;
 
   return (
     <>
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-zinc-300">
         The engine generated {agentState.speculative_variants.length} variants.
         Pick one to continue rendering, or describe your own.
       </p>
@@ -77,46 +72,59 @@ function SpeculativePanel() {
           return (
             <button
               key={i}
-              className="bg-surface border border-border hover:border-accent rounded-lg p-3 text-left transition-colors group"
+              className={`bg-zinc-800 border rounded-lg p-3 text-left transition-colors group ${
+                selectedIndex === i
+                  ? "border-indigo-400 bg-indigo-500/10"
+                  : "border-zinc-600 hover:border-indigo-400"
+              }`}
               disabled={isRunning}
-              onClick={() => approve("select_variant", { variant_index: i })}
+              onClick={() => {
+                setSelectedIndex(i);
+                approve("select_variant", { variant_index: i });
+              }}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-accent">
+                <span className="text-sm font-semibold text-indigo-400 flex items-center gap-2">
                   Variant {String.fromCharCode(65 + i)}
+                  {isRunning && selectedIndex === i && (
+                    <svg className="animate-spin h-3 w-3 text-indigo-400" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  )}
                 </span>
-                <span className="text-[10px] text-slate-500 group-hover:text-slate-300 transition-colors">
+                <span className="text-[10px] text-zinc-400 group-hover:text-zinc-200 transition-colors">
                   {dur.toFixed(1)}s · {fps} fps
                 </span>
               </div>
 
               <div className="flex gap-4 mb-2">
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Lens</span>
-                  <span className="text-xs text-slate-200">{focal}mm</span>
-                  <span className="text-[10px] text-slate-500">{lensLabel}</span>
+                  <span className="text-[10px] text-zinc-400 uppercase tracking-wider">Lens</span>
+                  <span className="text-xs text-zinc-100">{focal}mm</span>
+                  <span className="text-[10px] text-zinc-400">{lensLabel}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Lighting</span>
-                  <span className="text-xs text-slate-200">{lightMood}</span>
-                  <span className="text-[10px] text-slate-500">{lights.length} light{lights.length !== 1 ? "s" : ""}</span>
+                  <span className="text-[10px] text-zinc-400 uppercase tracking-wider">Lighting</span>
+                  <span className="text-xs text-zinc-100">{lightMood}</span>
+                  <span className="text-[10px] text-zinc-400">{lights.length} light{lights.length !== 1 ? "s" : ""}</span>
                 </div>
                 {subjects.length > 0 && (
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">Subject</span>
-                    <span className="text-xs text-slate-200 truncate">
+                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider">Subject</span>
+                    <span className="text-xs text-zinc-100 truncate">
                       {subjects[0]?.description ?? "—"}
                     </span>
                     {subjects.length > 1 && (
-                      <span className="text-[10px] text-slate-500">+{subjects.length - 1} more</span>
+                      <span className="text-[10px] text-zinc-400">+{subjects.length - 1} more</span>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="w-full h-1 bg-border rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-zinc-700 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-accent/60 rounded-full"
+                  className="h-full bg-indigo-400/60 rounded-full"
                   style={{ width: `${Math.min((dur / 30) * 100, 100)}%` }}
                 />
               </div>
@@ -128,39 +136,39 @@ function SpeculativePanel() {
         <div
           className={`border rounded-lg p-3 transition-colors ${
             showCustom
-              ? "bg-surface border-accent"
-              : "bg-surface border-border hover:border-accent cursor-pointer"
+              ? "bg-zinc-800 border-indigo-400"
+              : "bg-zinc-800 border-zinc-600 hover:border-indigo-400 cursor-pointer"
           }`}
           onClick={() => { if (!showCustom) setShowCustom(true); }}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-accent">Custom</span>
-            <span className="text-[10px] text-slate-500">Describe your own</span>
+            <span className="text-sm font-semibold text-indigo-400">Custom</span>
+            <span className="text-[10px] text-zinc-400">Describe your own</span>
           </div>
 
           {!showCustom ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-zinc-400">
               Click to describe exactly what you want — lens, lighting, subject, mood, etc.
             </p>
           ) : (
             <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
               <textarea
                 autoFocus
-                className="bg-black/30 border border-border rounded-md p-2 text-sm text-slate-200 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600 w-full"
+                className="bg-zinc-900 border border-zinc-600 rounded-md p-2 text-sm text-zinc-100 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 placeholder:text-zinc-500 w-full"
                 placeholder="e.g. A matte black water bottle, 85mm portrait lens, warm rim lighting from the left, dark studio background…"
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value)}
               />
               <div className="flex gap-2">
                 <button
-                  className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+                  className="flex-1 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
                   disabled={isRunning || !customText.trim()}
                   onClick={() => approve("modify", { modified_prompt: customText.trim() })}
                 >
                   Generate Custom Variant
                 </button>
                 <button
-                  className="px-3 bg-surface border border-border hover:border-slate-400 text-slate-400 text-sm rounded-md py-2 transition-colors"
+                  className="px-3 bg-zinc-800 border border-zinc-600 hover:border-zinc-400 text-zinc-300 text-sm rounded-md py-2 transition-colors"
                   onClick={() => { setShowCustom(false); setCustomText(""); }}
                 >
                   Cancel
@@ -179,96 +187,74 @@ function SpeculativePanel() {
 function WireframePanel() {
   const { agentState, approve, isRunning } = useProjectStore();
   const [notes, setNotes] = useState("");
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   if (!agentState) return null;
 
   const previs = agentState.previsualization;
-  const isWireframeMode = agentState.generation_mode === "wireframe";
+  const frameCount = previs?.frames.length ?? 0;
 
   return (
-    <>
-      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-slate-400">
-          Wireframe previsualization complete — {previs?.frames.length ?? 0} frame
-          {previs?.frames.length !== 1 ? "s" : ""} rendered.
-          Mood: <span className="text-slate-200">{previs?.mood}</span>. Palette:{" "}
-          <span className="text-slate-200">{previs?.palette_hint}</span>.
-        </p>
+    <div className="flex flex-col gap-2">
+      {/* Meta row */}
+      <div className="flex items-center gap-4 text-xs text-zinc-400">
+        <span className="text-zinc-100 font-medium">Wireframe Previsualization</span>
+        <span>{frameCount} frame{frameCount !== 1 ? "s" : ""}</span>
+        {previs?.mood && <span>Mood: <span className="text-zinc-100">{previs.mood}</span></span>}
+        {previs?.palette_hint && <span>Palette: <span className="text-zinc-100">{previs.palette_hint}</span></span>}
+      </div>
 
-        {previs && previs.frames.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {previs.frames.map((frame: WireframeFrame) => (
-              <div
-                key={frame.frame_index}
-                className="flex-shrink-0 w-40 rounded-md overflow-hidden border border-border bg-surface cursor-zoom-in"
-                onClick={() => setLightboxSrc(previsUrl(frame.viewport_thumbnail_path))}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previsUrl(frame.viewport_thumbnail_path)}
-                  alt={`Frame ${frame.frame_index}`}
-                  className="w-full h-24 object-cover"
-                />
-                <div className="px-2 py-1 text-[10px] text-slate-400 leading-tight">
-                  <div>
-                    {frame.time_start_s.toFixed(1)}s – {frame.time_end_s.toFixed(1)}s
-                  </div>
-                  <div>focal {frame.camera.focal_length_mm}mm</div>
-                  {frame.notes && (
-                    <div className="truncate text-slate-500">{frame.notes}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
+      {/* Feedback textarea — only shown when open */}
+      {feedbackOpen && (
         <textarea
-          className="bg-surface border border-border rounded-md p-3 text-sm text-slate-200 resize-none h-16 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600"
-          placeholder="Revision notes (required for Modify)…"
+          autoFocus
+          className="bg-zinc-900 border border-zinc-600 rounded-md p-2 text-sm text-zinc-100 resize-none h-16 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 placeholder:text-zinc-500 w-full"
+          placeholder="Describe what to change…"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
+      )}
 
-        <div className="flex gap-2">
+      {/* Action row */}
+      <div className="flex gap-2">
+        {!feedbackOpen ? (
           <button
-            className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+            className="px-4 bg-zinc-800 border border-zinc-600 hover:border-zinc-400 disabled:opacity-40 text-zinc-200 text-sm rounded-md py-1.5 transition-colors"
             disabled={isRunning}
-            onClick={() => approve("previsualization_approve")}
+            onClick={() => setFeedbackOpen(true)}
           >
-            {isWireframeMode ? "Accept Wireframes" : "Approve"}
+            Feedback
           </button>
-
-          {isWireframeMode && (
+        ) : (
+          <>
             <button
-              className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
-              disabled={isRunning}
-              onClick={() => approve("previsualization_proceed")}
+              className="px-4 bg-zinc-800 border border-zinc-600 hover:border-zinc-400 text-zinc-300 text-sm rounded-md py-1.5 transition-colors"
+              onClick={() => { setFeedbackOpen(false); setNotes(""); }}
             >
-              Make Model
+              Cancel
             </button>
-          )}
-
-          <button
-            className="flex-1 bg-surface border border-border hover:border-accent disabled:opacity-40 text-slate-200 text-sm rounded-md py-2 transition-colors"
-            disabled={isRunning || !notes.trim()}
-            onClick={() => approve("previsualization_modify", { notes: notes.trim() })}
-          >
-            Modify
-          </button>
-
-          <button
-            className="flex-1 bg-red-900/40 border border-red-700/50 hover:border-red-500 disabled:opacity-40 text-red-300 text-sm rounded-md py-2 transition-colors"
-            disabled={isRunning}
-            onClick={() => approve("previsualization_reject")}
-          >
-            Reject
-          </button>
-        </div>
+            <button
+              className="px-4 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-sm rounded-md py-1.5 transition-colors"
+              disabled={isRunning || !notes.trim()}
+              onClick={() => {
+                approve("previsualization_modify", { notes: notes.trim() });
+                setFeedbackOpen(false);
+                setNotes("");
+              }}
+            >
+              Submit
+            </button>
+          </>
+        )}
+        <button
+          className="px-5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-sm rounded-md py-1.5 transition-colors ml-auto"
+          disabled={isRunning}
+          onClick={() => approve("previsualization_approve")}
+        >
+          Approve
+        </button>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -277,112 +263,86 @@ function WireframePanel() {
 function ModelPanel() {
   const { agentState, approve, isRunning } = useProjectStore();
   const [notes, setNotes] = useState("");
-  const [showWireframes, setShowWireframes] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   if (!agentState) return null;
 
-  const previs = agentState.previsualization;
   const modelRenders = agentState.model_renders ?? [];
-  const isModelMode = agentState.generation_mode === "model";
 
   return (
     <>
       {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-slate-400">
-          Model renders complete — {modelRenders.length} render
-          {modelRenders.length !== 1 ? "s" : ""} generated.
-        </p>
-
+      <div className="flex flex-col gap-2">
+        {/* Render thumbnails strip */}
         {modelRenders.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {modelRenders.map((src: string, i: number) => (
               <div
                 key={i}
-                className="flex-shrink-0 w-40 rounded-md overflow-hidden border border-border bg-surface cursor-zoom-in"
+                className="flex-shrink-0 w-28 rounded-md overflow-hidden border border-zinc-600 bg-zinc-800 cursor-zoom-in"
                 onClick={() => setLightboxSrc(src)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt={`Model render ${i}`}
-                  className="w-full h-24 object-cover"
-                />
+                <img src={src} alt={`Render ${i}`} className="w-full h-16 object-cover" />
               </div>
             ))}
           </div>
         )}
 
-        {previs && previs.frames.length > 0 && (
-          <div>
-            <button
-              className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-              onClick={() => setShowWireframes((v) => !v)}
-            >
-              {showWireframes ? "▲ Hide wireframe reference" : "▼ Show wireframe reference"}
-            </button>
-            {showWireframes && (
-              <div className="flex gap-2 overflow-x-auto pb-1 mt-2">
-                {previs.frames.map((frame: WireframeFrame) => (
-                  <div
-                    key={frame.frame_index}
-                    className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-border/50 bg-surface opacity-70 cursor-zoom-in"
-                    onClick={() => setLightboxSrc(previsUrl(frame.viewport_thumbnail_path))}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previsUrl(frame.viewport_thumbnail_path)}
-                      alt={`Frame ${frame.frame_index}`}
-                      className="w-full h-20 object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* Meta row */}
+        <div className="flex items-center gap-4 text-xs text-zinc-400">
+          <span className="text-zinc-100 font-medium">Model Renders</span>
+          <span>{modelRenders.length} render{modelRenders.length !== 1 ? "s" : ""}</span>
+        </div>
+
+        {/* Feedback textarea */}
+        {feedbackOpen && (
+          <textarea
+            autoFocus
+            className="bg-zinc-900 border border-zinc-600 rounded-md p-2 text-sm text-zinc-100 resize-none h-16 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 placeholder:text-zinc-500 w-full"
+            placeholder="Describe what to change…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
         )}
 
-        <textarea
-          className="bg-surface border border-border rounded-md p-3 text-sm text-slate-200 resize-none h-16 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600"
-          placeholder="Revision notes (required for Modify)…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-
         <div className="flex gap-2">
+          {!feedbackOpen ? (
+            <button
+              className="px-4 bg-surface border border-border hover:border-slate-400 disabled:opacity-40 text-slate-300 text-sm rounded-md py-1.5 transition-colors"
+              disabled={isRunning}
+              onClick={() => setFeedbackOpen(true)}
+            >
+              Feedback
+            </button>
+          ) : (
+            <>
+              <button
+                className="px-4 bg-surface border border-border hover:border-slate-400 text-slate-400 text-sm rounded-md py-1.5 transition-colors"
+                onClick={() => { setFeedbackOpen(false); setNotes(""); }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-1.5 transition-colors"
+                disabled={isRunning || !notes.trim()}
+                onClick={() => {
+                  approve("model_modify", { notes: notes.trim() });
+                  setFeedbackOpen(false);
+                  setNotes("");
+                }}
+              >
+                Submit
+              </button>
+            </>
+          )}
           <button
-            className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+            className="px-5 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-1.5 transition-colors ml-auto"
             disabled={isRunning}
             onClick={() => approve("model_approve")}
           >
-            {isModelMode ? "Accept Models" : "Approve"}
-          </button>
-
-          {isModelMode && (
-            <button
-              className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
-              disabled={isRunning}
-              onClick={() => approve("model_proceed")}
-            >
-              Make Video
-            </button>
-          )}
-
-          <button
-            className="flex-1 bg-surface border border-border hover:border-accent disabled:opacity-40 text-slate-200 text-sm rounded-md py-2 transition-colors"
-            disabled={isRunning || !notes.trim()}
-            onClick={() => approve("model_modify", { notes: notes.trim() })}
-          >
-            Modify
-          </button>
-
-          <button
-            className="flex-1 bg-red-900/40 border border-red-700/50 hover:border-red-500 disabled:opacity-40 text-red-300 text-sm rounded-md py-2 transition-colors"
-            disabled={isRunning}
-            onClick={() => approve("model_reject")}
-          >
-            Reject
+            Approve
           </button>
         </div>
       </div>
@@ -405,33 +365,53 @@ export default function ApprovalDialog() {
 
   if (!isHumanApproval && !isSpeculative && !isWireframe && !isModel) return null;
 
+  // Once the user has acted and the pipeline is running, hide approval UI so the
+  // loading overlay can take over.
+  if (isRunning && (isWireframe || isModel)) return null;
+
+  // Wireframe and model use the slim bottom bar; other states use the centered modal.
+  if (isWireframe) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-900/95 backdrop-blur border-t border-zinc-700 px-6 py-3 shadow-2xl">
+        <WireframePanel />
+      </div>
+    );
+  }
+
+  if (isModel) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-panel/95 backdrop-blur border-t border-border px-6 py-3 shadow-2xl">
+        <ModelPanel />
+      </div>
+    );
+  }
+
+  // Centered modal for human approval and speculative batching
   let title = "";
   if (isHumanApproval) title = "Ambiguous Prompt — Human Approval Required";
   else if (isSpeculative) title = "Pick a Speculative Variant";
-  else if (isWireframe) title = "Wireframe Previsualization — Review & Approve";
-  else if (isModel) title = "Model Renders — Review & Approve";
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-panel border border-border rounded-xl w-full max-w-2xl p-6 flex flex-col gap-4 shadow-2xl">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-2xl p-6 flex flex-col gap-4 shadow-2xl">
         <h2 className="text-base font-semibold text-white">{title}</h2>
 
         {isHumanApproval && (
           <>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-zinc-300">
               The intent validator flagged high ambiguity (score:{" "}
               {agentState.ambiguity_score.toFixed(2)}). Accept the current
               interpretation or supply a clarified prompt.
             </p>
             <textarea
-              className="bg-surface border border-border rounded-md p-3 text-sm text-slate-200 resize-none h-20 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600"
+              className="bg-zinc-800 border border-zinc-600 rounded-md p-3 text-sm text-zinc-100 resize-none h-20 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 placeholder:text-zinc-500"
               placeholder="Clarified prompt (leave empty to accept as-is)…"
               value={modifiedPrompt}
               onChange={(e) => setModifiedPrompt(e.target.value)}
             />
             <div className="flex gap-2">
               <button
-                className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+                className="flex-1 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
                 disabled={isRunning}
                 onClick={() =>
                   modifiedPrompt.trim()
@@ -446,10 +426,6 @@ export default function ApprovalDialog() {
         )}
 
         {isSpeculative && <SpeculativePanel />}
-
-        {isWireframe && <WireframePanel />}
-
-        {isModel && <ModelPanel />}
       </div>
     </div>
   );

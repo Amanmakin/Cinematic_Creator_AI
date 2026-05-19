@@ -59,6 +59,8 @@ export interface Previsualization {
   mood: string;
   palette_hint: string;
   render_engine: "blender_eevee" | "opengl";
+  wireframe_sheet_path?: string | null;
+  wireframe_glb_path?: string | null;
 }
 
 export interface ProjectCanon {

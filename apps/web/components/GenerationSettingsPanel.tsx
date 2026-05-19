@@ -80,14 +80,14 @@ export function GenerationSettingsPanel({ projectId }: Props) {
   }
 
   if (!config) {
-    return <p className="text-xs text-slate-500">{error ?? "Loading…"}</p>;
+    return <p className="text-xs text-zinc-400">{error ?? "Loading…"}</p>;
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-4">
+    <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wide">Image Generation</h3>
-        {saving && <span className="text-xs text-slate-500">Saving…</span>}
+        <h3 className="text-xs font-medium text-zinc-300 uppercase tracking-wide">Image Generation</h3>
+        {saving && <span className="text-xs text-zinc-400">Saving…</span>}
       </div>
 
       <div className="space-y-2">
@@ -100,17 +100,17 @@ export function GenerationSettingsPanel({ projectId }: Props) {
               checked={config.strategy === s.value}
               onChange={() => handleChange({ strategy: s.value })}
               disabled={saving}
-              className="mt-1 accent-accent"
+              className="mt-1 accent-indigo-400"
             />
             <div>
-              <p className="text-sm font-medium text-slate-200">{s.label}</p>
-              <p className="text-xs text-slate-500">{s.description}</p>
+              <p className="text-sm font-medium text-zinc-100">{s.label}</p>
+              <p className="text-xs text-zinc-400">{s.description}</p>
             </div>
           </label>
         ))}
       </div>
 
-      <hr className="border-border" />
+      <hr className="border-zinc-700" />
 
       <label className="flex items-center gap-3 cursor-pointer">
         <input
@@ -118,11 +118,11 @@ export function GenerationSettingsPanel({ projectId }: Props) {
           checked={config.use_smaller_models}
           onChange={(e) => handleChange({ use_smaller_models: e.target.checked })}
           disabled={saving}
-          className="accent-accent"
+          className="accent-indigo-400"
         />
         <div>
-          <p className="text-sm font-medium text-slate-200">Use faster SD 1.5 locally</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm font-medium text-zinc-100">Use faster SD 1.5 locally</p>
+          <p className="text-xs text-zinc-400">
             ~60 s/image instead of ~180 s for SDXL. Lower quality but much faster on Mac M-series.
           </p>
         </div>

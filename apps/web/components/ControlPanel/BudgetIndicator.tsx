@@ -31,18 +31,18 @@ export default function BudgetIndicator({ projectId }: BudgetIndicatorProps) {
 
   const pct = remaining !== null ? Math.round((remaining / cap) * 100) : 0;
   const color =
-    pct > 50 ? "bg-green-500" : pct > 20 ? "bg-yellow-400" : "bg-red-500";
+    pct > 50 ? "bg-emerald-400" : pct > 20 ? "bg-amber-400" : "bg-red-400";
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Budget</label>
-      <div className="h-1.5 bg-border rounded-full overflow-hidden">
+      <label className="text-xs font-medium text-zinc-300 uppercase tracking-wide">Budget</label>
+      <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${color}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="text-[10px] text-slate-500">
+      <p className="text-[10px] text-zinc-400">
         {remaining !== null
           ? `${remaining.toLocaleString()} / ${cap.toLocaleString()} tokens remaining`
           : "Loading budget…"}

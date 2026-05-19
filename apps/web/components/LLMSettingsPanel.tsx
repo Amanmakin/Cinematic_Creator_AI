@@ -101,17 +101,17 @@ export function LLMSettingsPanel() {
   }
 
   if (!config) {
-    return <p className="text-sm text-gray-500">{error ?? "Loading…"}</p>;
+    return <p className="text-sm text-zinc-400">{error ?? "Loading…"}</p>;
   }
 
   const isCustom = selectedPreset === "custom";
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 space-y-4">
+    <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wide">LLM Model</h3>
-        {saving && <span className="text-xs text-slate-500">Saving…</span>}
-        {saved && <span className="text-xs text-green-500">Saved</span>}
+        <h3 className="text-xs font-medium text-zinc-300 uppercase tracking-wide">LLM Model</h3>
+        {saving && <span className="text-xs text-zinc-400">Saving…</span>}
+        {saved && <span className="text-xs text-emerald-400">Saved</span>}
       </div>
 
       <div className="space-y-2">
@@ -124,11 +124,11 @@ export function LLMSettingsPanel() {
               checked={selectedPreset === p.key}
               onChange={() => applyPreset(p.key)}
               disabled={saving}
-              className="mt-1 accent-accent"
+              className="mt-1 accent-indigo-400"
             />
             <div>
-              <p className="text-sm font-medium text-slate-200">{p.label}</p>
-              <p className="text-xs text-slate-500">{p.description}</p>
+              <p className="text-sm font-medium text-zinc-100">{p.label}</p>
+              <p className="text-xs text-zinc-400">{p.description}</p>
             </div>
           </label>
         ))}
@@ -137,13 +137,13 @@ export function LLMSettingsPanel() {
       {isCustom && (
         <div className="space-y-2 pt-1">
           <input
-            className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 transition-all"
             placeholder="Model name (e.g. gpt-4-turbo)"
             value={config.model}
             onChange={(e) => setConfig({ ...config, model: e.target.value })}
           />
           <input
-            className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 transition-all"
             placeholder="Base URL (empty = OpenAI default)"
             value={config.base_url}
             onChange={(e) => setConfig({ ...config, base_url: e.target.value })}
@@ -151,7 +151,7 @@ export function LLMSettingsPanel() {
           <button
             onClick={() => save(config)}
             disabled={saving || !config.model}
-            className="w-full rounded-md bg-accent py-1.5 text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+            className="w-full rounded-md bg-indigo-500 py-1.5 text-xs font-medium text-white disabled:opacity-40 hover:bg-indigo-400 transition-colors"
           >
             Apply
           </button>

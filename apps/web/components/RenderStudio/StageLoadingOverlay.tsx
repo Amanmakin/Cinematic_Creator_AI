@@ -184,7 +184,15 @@ const STAGE_CONFIG: Record<ExecutionStage, StageConfig> = {
   },
 };
 
-const HIDDEN_STAGES: ExecutionStage[] = ["idle", "completed", "render_completed"];
+// Stages that have their own dedicated approval UI — overlay hidden so viewport stays clear
+const HIDDEN_STAGES: ExecutionStage[] = [
+  "idle",
+  "completed",
+  "render_completed",
+  "awaiting_human_approval",
+  "previsualization_generated",
+  "model_generated",
+];
 
 // ── Cinematic corner brackets ────────────────────────────────────────────────
 
@@ -249,7 +257,7 @@ function FilmStepper({ currentStep }: { currentStep: number }) {
         {/* Sprocket hole left */}
         <div className="flex flex-col gap-1 pr-1">
           {[0, 1].map((i) => (
-            <div key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+            <div key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
           ))}
         </div>
 
@@ -271,13 +279,13 @@ function FilmStepper({ currentStep }: { currentStep: number }) {
         {/* Sprocket hole right */}
         <div className="flex flex-col gap-1 pl-1">
           {[0, 1].map((i) => (
-            <div key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+            <div key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
           ))}
         </div>
       </div>
 
       {/* Step counter */}
-      <p className="text-[10px] text-zinc-600 text-center font-mono">
+      <p className="text-[10px] text-zinc-400 text-center font-mono">
         FRAME {currentStep + 1} / {PIPELINE_STEPS}
       </p>
     </div>
@@ -310,24 +318,24 @@ export default function StageLoadingOverlay() {
 
   const cornerColor =
     config.type === "error"
-      ? "text-red-500/50"
+      ? "text-red-400/60"
       : config.type === "waiting"
-        ? "text-amber-500/50"
-        : "text-indigo-500/50";
+        ? "text-amber-400/60"
+        : "text-indigo-400/60";
 
   const borderColor =
     config.type === "error"
-      ? "border-red-500/25"
+      ? "border-red-500/30"
       : config.type === "waiting"
-        ? "border-amber-500/25"
-        : "border-indigo-500/25";
+        ? "border-amber-500/30"
+        : "border-indigo-500/30";
 
   const glowColor =
     config.type === "error"
-      ? "shadow-red-950/60"
+      ? "shadow-red-900/40"
       : config.type === "waiting"
-        ? "shadow-amber-950/60"
-        : "shadow-indigo-950/60";
+        ? "shadow-amber-900/40"
+        : "shadow-indigo-900/40";
 
   const iconColor =
     config.type === "error"
@@ -335,6 +343,37 @@ export default function StageLoadingOverlay() {
       : config.type === "waiting"
         ? "text-amber-400"
         : "text-indigo-400";
+
+  // Waiting stages show a compact banner at the bottom so the viewport stays visible
+  if (config.type === "waiting") {
+    return (
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none z-10 w-full max-w-sm px-4">
+        <div
+          className={[
+            "relative flex items-center gap-3 px-4 py-3 rounded-xl",
+            "bg-zinc-950/90 backdrop-blur-lg border",
+            borderColor,
+            `shadow-2xl ${glowColor}`,
+          ].join(" ")}
+        >
+          <ViewfinderCorners color={cornerColor} />
+          <div className="text-xl select-none leading-none shrink-0">{config.emoji}</div>
+          <WaitingPulse color={iconColor} />
+          <div className="flex-1 min-w-0">
+            <p className={`text-xs font-bold tracking-widest uppercase truncate ${accentText}`}>
+              {config.label}
+            </p>
+            <p className="text-[11px] text-zinc-400 leading-snug truncate">{config.description}</p>
+          </div>
+          {config.step !== null && (
+            <p className="text-[10px] text-zinc-600 font-mono shrink-0">
+              {config.step + 1}/{PIPELINE_STEPS}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -351,7 +390,7 @@ export default function StageLoadingOverlay() {
       <div
         className={[
           "relative flex flex-col items-center gap-4 px-8 py-7 rounded-xl",
-          "bg-zinc-950/85 backdrop-blur-lg border",
+          "bg-zinc-900/90 backdrop-blur-lg border",
           borderColor,
           `shadow-2xl ${glowColor}`,
           "max-w-xs w-full mx-4",
@@ -365,7 +404,6 @@ export default function StageLoadingOverlay() {
 
         {/* Animated icon */}
         {config.type === "progress" && <CinematicSpinner color={iconColor} />}
-        {config.type === "waiting" && <WaitingPulse color={iconColor} />}
         {config.type === "error" && <ErrorIcon />}
 
         {/* Phase label + description */}
@@ -373,7 +411,7 @@ export default function StageLoadingOverlay() {
           <p className={`text-sm font-bold tracking-widest uppercase ${accentText}`}>
             {config.label}
           </p>
-          <p className="text-xs text-zinc-400 leading-snug">{config.description}</p>
+          <p className="text-xs text-zinc-300 leading-snug">{config.description}</p>
         </div>
 
         {/* Film-strip progress */}
@@ -381,13 +419,13 @@ export default function StageLoadingOverlay() {
 
         {/* Error detail */}
         {error && config.type === "error" && (
-          <p className="text-[11px] text-red-400/80 text-center bg-red-950/40 rounded-lg px-3 py-2 w-full leading-snug">
+          <p className="text-[11px] text-red-400/90 text-center bg-red-950/50 rounded-lg px-3 py-2 w-full leading-snug">
             {error}
           </p>
         )}
 
         {/* Monospace status key */}
-        <p className="text-[10px] text-zinc-700 font-mono tracking-wide">{status}</p>
+        <p className="text-[10px] text-zinc-500 font-mono tracking-wide">{status}</p>
       </div>
     </div>
   );

@@ -3,12 +3,40 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0f1117;
-  --panel: #1a1d27;
+  --bg: #09090b;
+  --panel: #18181b;
+  --surface: #1e1e23;
+  --border: #3f3f46;
+  --border-bright: #52525b;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
 }
 
 body {
   background: var(--bg);
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Higher-contrast range slider */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* Scrollbar styled for dark high-contrast */
+aside::-webkit-scrollbar {
+  width: 5px;
+}
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+aside::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+aside::-webkit-scrollbar-thumb:hover {
+  background: var(--border-bright);
 }

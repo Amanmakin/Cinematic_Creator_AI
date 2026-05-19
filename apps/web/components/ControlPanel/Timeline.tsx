@@ -13,8 +13,8 @@ interface Checkpoint {
 }
 
 const KIND_COLOR: Record<string, string> = {
-  SceneGraphMutated: "bg-indigo-500",
-  AgentStep: "bg-zinc-600",
+  SceneGraphMutated: "bg-indigo-400",
+  AgentStep: "bg-zinc-500",
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -54,12 +54,12 @@ export default function Timeline() {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Timeline</span>
-        {loading && <span className="text-[10px] text-zinc-600">loading…</span>}
+        <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Timeline</span>
+        {loading && <span className="text-[10px] text-zinc-500">loading…</span>}
       </div>
 
       {displayPoints.length === 0 && !loading && (
-        <p className="text-xs text-zinc-600 italic">No checkpoints yet.</p>
+        <p className="text-xs text-zinc-500 italic">No checkpoints yet.</p>
       )}
 
       <div className="flex items-center gap-1 overflow-x-auto pb-1">
@@ -72,18 +72,18 @@ export default function Timeline() {
             className={`flex-shrink-0 flex flex-col items-center gap-1 group`}
           >
             <div
-              className={`w-3 h-3 rounded-full ${KIND_COLOR[cp.kind] ?? "bg-zinc-600"} group-hover:ring-2 ring-indigo-400 transition-all ${
+              className={`w-3 h-3 rounded-full ${KIND_COLOR[cp.kind] ?? "bg-zinc-500"} group-hover:ring-2 ring-indigo-400 transition-all ${
                 forking === cp.checkpoint_id ? "animate-pulse" : ""
               }`}
             />
-            <span className="text-[8px] text-zinc-600 group-hover:text-zinc-400">
+            <span className="text-[8px] text-zinc-500 group-hover:text-zinc-300">
               {i + 1}
             </span>
           </button>
         ))}
       </div>
 
-      <p className="text-[10px] text-zinc-600">
+      <p className="text-[10px] text-zinc-500">
         Click a dot to fork the project to that checkpoint — zero LLM/render calls.
       </p>
     </div>

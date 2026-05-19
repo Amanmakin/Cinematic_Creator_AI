@@ -11,6 +11,7 @@ from typing import Literal
 
 from orchestrator.cinematics.camera_planner import PlannedShot
 from orchestrator.rendering.blender_runtime import BlenderRuntime
+from orchestrator.rendering.sheet_composer import compose_wireframe_sheet
 from orchestrator.schemas.dsl import BlenderDsl
 from orchestrator.schemas.previsualization import CameraTransform, LightingInfo, WireframeFrame
 from orchestrator.schemas.wire_geometry import WireframeGeometry
@@ -116,3 +117,37 @@ class PrevisRenderer:
             self.render_frame(shot, subjects=subjects, primitives=primitives)
             for shot in shots
         ]
+
+    def render_wireframe_sheet(
+        self,
+        scene_graph: BlenderDsl | None = None,
+        wire_geometry: WireframeGeometry | None = None,
+        subject_label: str = "Object",
+    ) -> tuple[str, str | None]:
+        """Render a multi-view wireframe reference sheet.
+
+        Returns (sheet_url, glb_url) — glb_url is None when Blender export failed.
+        """
+        primitives = _primitives_from_geometry(wire_geometry) if wire_geometry else None
+        subjects   = _subjects_from_scene(scene_graph) if scene_graph else None
+
+        view_paths = self._runtime.render_sheet(
+            primitives=primitives,
+            subjects=subjects,
+            resolution=(640, 480),
+        )
+        stats       = view_paths.pop("stats", {})
+        glb_fs_path = view_paths.pop("wireframe_glb", None)
+
+        sheet_filename = "wireframe_sheet.png"
+        sheet_fs_path  = str(self._runtime.output_dir / sheet_filename)
+
+        compose_wireframe_sheet(
+            view_paths=view_paths,
+            stats=stats,
+            subject_label=subject_label,
+            output_path=sheet_fs_path,
+        )
+
+        glb_url = self._url("wireframe.glb") if glb_fs_path else None
+        return self._url(sheet_filename), glb_url

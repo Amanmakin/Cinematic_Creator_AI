@@ -1,14 +1,20 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, useGLTF, Center } from "@react-three/drei";
+import * as THREE from "three";
 import CameraRig from "./CameraRig";
 import GltfScene from "./GltfScene";
 import ControlsOverlay from "./ControlsOverlay";
 import StageLoadingOverlay from "./StageLoadingOverlay";
 import { useProjectStore } from "@/state/projectStore";
 import type { OtOp } from "@/lib/sceneGraph/diff";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+function previsUrl(path: string) {
+  return path.startsWith("http") ? path : `${API_BASE}${path}`;
+}
 
 interface ViewportProps {
   glbUrl?: string | null;
@@ -32,6 +38,9 @@ export default function Viewport({ glbUrl }: ViewportProps) {
     (agentState?.semantic_locks ?? []).map((l) => l.path),
   );
 
+  const wireGlbPath = agentState?.previsualization?.wireframe_glb_path;
+  const wireGlbUrl = wireGlbPath ? previsUrl(wireGlbPath) : null;
+
   function handleCommit(ops: OtOp[]) {
     if (!projectId || !graph) return;
     applyOt(ops);
@@ -41,12 +50,18 @@ export default function Viewport({ glbUrl }: ViewportProps) {
     <div className="relative w-full h-full min-h-[400px]">
       <Canvas
         camera={{ fov: 50, position: [0, 1, 5], near: 0.01, far: 1000 }}
-        style={{ background: "#0a0a0f" }}
+        style={{ background: "#0c0c14" }}
       >
         <Suspense fallback={null}>
           <CameraRig graph={graph} />
           <SceneLights />
-          {glbUrl ? <GltfScene url={glbUrl} /> : <WireframePlaceholder />}
+          {glbUrl ? (
+            <GltfScene url={glbUrl} />
+          ) : wireGlbUrl ? (
+            <WireframeGlb url={wireGlbUrl} />
+          ) : (
+            <WireframePlaceholder />
+          )}
           <OrbitControls makeDefault />
         </Suspense>
       </Canvas>
@@ -66,10 +81,28 @@ export default function Viewport({ glbUrl }: ViewportProps) {
       </div>
 
       {/* Version badge */}
-      <div className="absolute bottom-2 left-2 text-[10px] text-zinc-600 select-none">
+      <div className="absolute bottom-2 left-2 text-[10px] text-zinc-500 select-none">
         v{otVersion}
       </div>
     </div>
+  );
+}
+
+function WireframeGlb({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  const wireScene = useMemo(() => {
+    const clone = scene.clone(true);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x818cf8, wireframe: true });
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) (child as THREE.Mesh).material = mat;
+    });
+    return clone;
+  }, [scene]);
+  return (
+    <Center>
+      <primitive object={wireScene} />
+      <gridHelper args={[10, 10, "#2a2a3e", "#1a1a28"]} position={[0, -0.01, 0]} />
+    </Center>
   );
 }
 
@@ -78,9 +111,9 @@ function WireframePlaceholder() {
     <group>
       <mesh position={[0, 0.9, 0]}>
         <boxGeometry args={[1, 1.8, 0.6]} />
-        <meshBasicMaterial color="#4f46e5" wireframe />
+        <meshBasicMaterial color="#818cf8" wireframe />
       </mesh>
-      <gridHelper args={[10, 10, "#333", "#222"]} />
+      <gridHelper args={[10, 10, "#3f3f46", "#27272a"]} />
     </group>
   );
 }

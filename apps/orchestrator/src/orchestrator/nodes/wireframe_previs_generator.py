@@ -93,6 +93,8 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
         planner = CameraPlanner()
         shots = planner.generate_shots(state.scene_graph, config=planner_config)
 
+        subject_label = state.intent.subject if state.intent else "Object"
+
         renderer = PrevisRenderer(
             output_dir=output_dir,
             project_id=state.project_id,
@@ -104,6 +106,17 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
             wire_geometry=wire_geometry,
         )
 
+        sheet_url: str | None = None
+        glb_url: str | None = None
+        try:
+            sheet_url, glb_url = renderer.render_wireframe_sheet(
+                scene_graph=state.scene_graph,
+                wire_geometry=wire_geometry,
+                subject_label=subject_label,
+            )
+        except Exception as exc:
+            logger.warning("render_wireframe_sheet failed: %s", exc)
+
         mood         = _infer_mood(state)
         palette_hint = _infer_palette_hint(state)
 
@@ -112,6 +125,8 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
             mood=mood,
             palette_hint=palette_hint,
             render_engine="blender_eevee",
+            wireframe_sheet_path=sheet_url,
+            wireframe_glb_path=glb_url,
         )
 
         out.update(

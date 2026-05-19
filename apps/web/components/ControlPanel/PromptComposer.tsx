@@ -15,9 +15,9 @@ export default function PromptComposer() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Prompt</label>
+      <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Prompt</label>
       <textarea
-        className="bg-surface border border-border rounded-md p-3 text-sm text-slate-200 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600"
+        className="bg-zinc-800 border border-zinc-600 rounded-md p-3 text-sm text-zinc-100 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 placeholder:text-zinc-500 transition-all"
         placeholder="Describe the cinematic scene…"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
@@ -26,7 +26,7 @@ export default function PromptComposer() {
       <button
         type="submit"
         disabled={isRunning || !prompt.trim() || !projectId}
-        className="bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium rounded-md py-2 transition-colors"
+        className="bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-sm font-medium rounded-md py-2.5 transition-colors shadow-md shadow-indigo-500/20"
       >
         {isRunning ? "Running…" : "Generate"}
       </button>

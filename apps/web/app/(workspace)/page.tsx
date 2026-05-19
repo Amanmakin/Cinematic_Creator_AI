@@ -39,9 +39,9 @@ export default function WorkspacePage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Left panel */}
-      <aside className="w-[420px] flex-shrink-0 flex flex-col gap-4 p-4 bg-panel border-r border-border overflow-y-auto">
-        <h1 className="text-lg font-semibold text-accent">CinematicVideoCreator</h1>
+      {/* Left panel — elevated from bg for contrast */}
+      <aside className="w-[420px] flex-shrink-0 flex flex-col gap-4 p-4 bg-zinc-900 border-r border-zinc-700/60 overflow-y-auto">
+        <h1 className="text-lg font-semibold text-indigo-400 tracking-tight">AI Studio</h1>
         <PromptComposer />
         <PhaseStatusBar />
         <Timeline />
@@ -51,7 +51,7 @@ export default function WorkspacePage() {
       </aside>
 
       {/* Right panel */}
-      <main className="flex-1 overflow-auto bg-slate-950">
+      <main className="flex-1 overflow-auto bg-[#09090b]">
         <Viewport />
       </main>
 

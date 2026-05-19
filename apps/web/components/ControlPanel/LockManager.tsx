@@ -19,21 +19,21 @@ export default function LockManager() {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Semantic Locks</label>
+      <label className="text-xs font-medium text-zinc-300 uppercase tracking-wide">Semantic Locks</label>
 
       {locks.length === 0 ? (
-        <p className="text-xs text-slate-600 italic">No locks active.</p>
+        <p className="text-xs text-zinc-500 italic">No locks active.</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {locks.map((lock) => (
             <li
               key={lock.path}
-              className="flex items-center justify-between text-xs bg-surface border border-border rounded-md px-3 py-2"
+              className="flex items-center justify-between text-xs bg-zinc-800 border border-zinc-600 rounded-md px-3 py-2"
             >
               <span className="font-mono text-cyan-400 truncate">{lock.path}</span>
               <button
                 onClick={() => removeLock(lock.path)}
-                className="text-slate-600 hover:text-red-400 ml-2 transition-colors"
+                className="text-zinc-500 hover:text-red-400 ml-2 transition-colors"
                 title="Remove lock"
               >
                 ✕
@@ -45,13 +45,13 @@ export default function LockManager() {
 
       <form onSubmit={handleAdd} className="flex flex-col gap-1 mt-1">
         <input
-          className="bg-surface border border-border rounded-md px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-accent"
+          className="bg-zinc-800 border border-zinc-600 rounded-md px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 transition-all"
           placeholder="scene.camera.focal_mm"
           value={path}
           onChange={(e) => setPath(e.target.value)}
         />
         <input
-          className="bg-surface border border-border rounded-md px-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-accent"
+          className="bg-zinc-800 border border-zinc-600 rounded-md px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 transition-all"
           placeholder="Reason for locking"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -59,7 +59,7 @@ export default function LockManager() {
         <button
           type="submit"
           disabled={!path.trim() || !reason.trim()}
-          className="bg-surface border border-border hover:border-accent disabled:opacity-40 text-xs text-slate-300 rounded-md py-1.5 transition-colors"
+          className="bg-zinc-800 border border-zinc-600 hover:border-indigo-400 hover:text-indigo-300 disabled:opacity-40 text-xs text-zinc-200 rounded-md py-1.5 transition-colors"
         >
           Add Lock
         </button>
