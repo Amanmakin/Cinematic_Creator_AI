@@ -98,5 +98,14 @@ async def delete_lock(project_id: str, lock_path: str) -> bool:
 def get_sqlite_checkpointer():
     """Return a SqliteSaver for LangGraph checkpoints."""
     from langgraph.checkpoint.sqlite import SqliteSaver
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+    serde = JsonPlusSerializer(
+        allowed_msgpack_modules=[
+            ("orchestrator.schemas.previsualization", "Previsualization"),
+            ("orchestrator.schemas.previsualization", "WireframeFrame"),
+            ("orchestrator.schemas.previsualization", "CameraTransform"),
+            ("orchestrator.schemas.previsualization", "LightingInfo"),
+        ]
+    )
     conn = sqlite3.connect(settings.db_path, check_same_thread=False)
-    return SqliteSaver(conn)
+    return SqliteSaver(conn, serde=serde)

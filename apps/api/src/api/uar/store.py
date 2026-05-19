@@ -129,8 +129,8 @@ class UARStore:
         a_path = uar_paths.alpha_mask_path(self._uar_root, ctx.project_id, sha)
         d_path = uar_paths.depth_map_path(self._uar_root, ctx.project_id, sha)
 
-        # Write placeholder files atomically — real data would be downloaded from asset_ref URL
-        _write_placeholder(r_path, b"RGBA_PLACEHOLDER")
+        # Download the actual generated image; fall back to placeholder on failure
+        await _save_image(asset_ref.source_url, r_path)
         _write_placeholder(a_path, b"ALPHA_PLACEHOLDER")
         _write_placeholder(d_path, b"DEPTH_PLACEHOLDER")
 
@@ -184,6 +184,39 @@ def _write_placeholder(path: str, data: bytes) -> None:
     with open(tmp, "wb") as f:
         f.write(data)
     os.replace(tmp, path)
+
+
+async def _save_image(source_url: str | None, dest_path: str) -> None:
+    """Download or copy the real generated image to dest_path.
+
+    Supports:
+    - http(s):// URLs  → downloaded via httpx
+    - file:// URLs     → copied directly (both processes on same host)
+    Falls back to a placeholder byte-string when the source is unavailable.
+    """
+    if source_url:
+        if source_url.startswith("file://"):
+            src = source_url[len("file://"):]
+            if os.path.exists(src):
+                import shutil
+                tmp = dest_path + ".tmp"
+                shutil.copy2(src, tmp)
+                os.replace(tmp, dest_path)
+                return
+        elif source_url.startswith("http"):
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.get(source_url)
+                    if resp.status_code == 200:
+                        tmp = dest_path + ".tmp"
+                        with open(tmp, "wb") as f:
+                            f.write(resp.content)
+                        os.replace(tmp, dest_path)
+                        return
+            except Exception:
+                pass
+    _write_placeholder(dest_path, b"RGBA_PLACEHOLDER")
 
 
 def _row_to_asset(row: dict) -> LayerAsset:

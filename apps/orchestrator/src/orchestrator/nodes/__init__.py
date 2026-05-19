@@ -1,4 +1,5 @@
 from orchestrator.nodes.creative_dispatcher import creative_dispatcher_node
+from orchestrator.nodes.dsl_compiler import dsl_compiler_node
 from orchestrator.nodes.generation_mode_parser import generation_mode_parser_node
 from orchestrator.nodes.intent_validator import intent_validator_node
 from orchestrator.nodes.physical_validation import physical_validation_node
@@ -15,5 +16,6 @@ __all__ = [
     "wireframe_previs_generator_node",
     "creative_dispatcher_node",
     "physical_validation_node",
+    "dsl_compiler_node",
     "speculative_batcher_node",
 ]

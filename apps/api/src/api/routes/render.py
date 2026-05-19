@@ -207,3 +207,12 @@ async def get_render_events(project_id: str, scene_hash_val: str):
     """Return all DAG events for a scene hash."""
     events = await get_events(project_id, scene_hash=scene_hash_val)
     return {"events": events}
+
+
+@router.get("/{project_id}/assembled.glb")
+async def serve_assembled_glb(project_id: str):
+    """Serve the assembled .glb produced by the gltf_assembler node."""
+    glb_path = Path(_RENDERS_ROOT) / project_id / "assembled.glb"
+    if not glb_path.exists():
+        raise HTTPException(status_code=404, detail="No assembled GLB for this project yet")
+    return FileResponse(str(glb_path), media_type="model/gltf-binary")

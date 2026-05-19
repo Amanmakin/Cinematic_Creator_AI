@@ -78,6 +78,7 @@ class AssetRef(BaseModel):
     asset_id: str
     adapter: str
     adapter_version: str
+    source_url: str | None = None  # file:// or http:// URL to the raw generated image
 
 
 class LayerAsset(BaseModel):

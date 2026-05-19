@@ -1,24 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <defs>
-    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#a855f7"/>
+    <linearGradient id="g" x1="4" y1="7" x2="28" y2="25" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#a855f7"/>
     </linearGradient>
-    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#818cf8"/>
-      <stop offset="100%" stop-color="#c084fc"/>
-    </linearGradient>
+    <clipPath id="c">
+      <rect x="4" y="7" width="24" height="6" rx="1.5"/>
+    </clipPath>
   </defs>
 
   <!-- Background -->
   <rect width="32" height="32" rx="7" fill="#09090b"/>
 
-  <!-- Outer ring arc (top-left 3/4) -->
-  <path d="M16 4 A12 12 0 1 1 4 16" stroke="url(#g1)" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.4"/>
+  <!-- Clapper top bar -->
+  <rect x="4" y="7" width="24" height="6" rx="1.5" fill="url(#g)"/>
 
-  <!-- Play triangle (centred, slightly right) -->
-  <polygon points="13,10 13,22 23,16" fill="url(#g1)" opacity="0.95"/>
+  <!-- Diagonal stripes clipped to top bar -->
+  <g clip-path="url(#c)">
+    <line x1="9"  y1="7" x2="6"  y2="13" stroke="#09090b" stroke-width="2.2"/>
+    <line x1="15" y1="7" x2="12" y2="13" stroke="#09090b" stroke-width="2.2"/>
+    <line x1="21" y1="7" x2="18" y2="13" stroke="#09090b" stroke-width="2.2"/>
+    <line x1="27" y1="7" x2="24" y2="13" stroke="#09090b" stroke-width="2.2"/>
+  </g>
 
-  <!-- Spark dot top-right -->
-  <circle cx="25" cy="7" r="2" fill="url(#g2)"/>
+  <!-- Clapper board body -->
+  <rect x="4" y="14" width="24" height="11" rx="1.5" stroke="url(#g)" stroke-width="1.5"/>
+
+  <!-- Play triangle -->
+  <path d="M13 17.5 L13 23 L21 20.25 Z" fill="url(#g)"/>
 </svg>

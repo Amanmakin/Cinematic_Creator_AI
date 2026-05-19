@@ -107,9 +107,11 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
         )
 
         sheet_url: str | None = None
+        sheet_fs_path: str | None = None
+        persp_fs_path: str | None = None
         glb_url: str | None = None
         try:
-            sheet_url, glb_url = renderer.render_wireframe_sheet(
+            sheet_url, glb_url, sheet_fs_path, persp_fs_path = renderer.render_wireframe_sheet(
                 scene_graph=state.scene_graph,
                 wire_geometry=wire_geometry,
                 subject_label=subject_label,
@@ -126,6 +128,8 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
             palette_hint=palette_hint,
             render_engine="blender_eevee",
             wireframe_sheet_path=sheet_url,
+            wireframe_sheet_fs_path=sheet_fs_path,
+            wireframe_persp_fs_path=persp_fs_path,
             wireframe_glb_path=glb_url,
         )
 

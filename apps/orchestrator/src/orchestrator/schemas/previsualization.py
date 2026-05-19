@@ -31,5 +31,7 @@ class Previsualization(BaseModel):
     mood: str
     palette_hint: str
     render_engine: Literal["blender_eevee", "opengl"]
-    wireframe_sheet_path: str | None = None
+    wireframe_sheet_path: str | None = None      # URL path for browser serving
+    wireframe_sheet_fs_path: str | None = None   # absolute disk path for img2img (full sheet)
+    wireframe_persp_fs_path: str | None = None   # absolute disk path of perspective view only
     wireframe_glb_path: str | None = None

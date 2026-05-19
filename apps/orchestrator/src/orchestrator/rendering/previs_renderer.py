@@ -118,15 +118,20 @@ class PrevisRenderer:
             for shot in shots
         ]
 
+    @property
+    def output_dir(self):
+        return self._runtime.output_dir
+
     def render_wireframe_sheet(
         self,
         scene_graph: BlenderDsl | None = None,
         wire_geometry: WireframeGeometry | None = None,
         subject_label: str = "Object",
-    ) -> tuple[str, str | None]:
+    ) -> tuple[str, str | None, str, str | None]:
         """Render a multi-view wireframe reference sheet.
 
-        Returns (sheet_url, glb_url) — glb_url is None when Blender export failed.
+        Returns (sheet_url, glb_url, sheet_fs_path, persp_fs_path) — glb_url is None when
+        Blender export failed; persp_fs_path is the clean perspective view for img2img.
         """
         primitives = _primitives_from_geometry(wire_geometry) if wire_geometry else None
         subjects   = _subjects_from_scene(scene_graph) if scene_graph else None
@@ -136,8 +141,9 @@ class PrevisRenderer:
             subjects=subjects,
             resolution=(640, 480),
         )
-        stats       = view_paths.pop("stats", {})
-        glb_fs_path = view_paths.pop("wireframe_glb", None)
+        stats           = view_paths.pop("stats", {})
+        glb_fs_path     = view_paths.pop("wireframe_glb", None)
+        persp_fs_path   = view_paths.get("persp")  # clean single perspective view for img2img
 
         sheet_filename = "wireframe_sheet.png"
         sheet_fs_path  = str(self._runtime.output_dir / sheet_filename)
@@ -150,4 +156,4 @@ class PrevisRenderer:
         )
 
         glb_url = self._url("wireframe.glb") if glb_fs_path else None
-        return self._url(sheet_filename), glb_url
+        return self._url(sheet_filename), glb_url, sheet_fs_path, persp_fs_path

@@ -97,3 +97,4 @@ class AgentState(BaseModel):
     previsualization_feedback: str | None = None
     model_renders: list[str] | None = None
     model_feedback: str | None = None
+    gltf_assembled_path: str | None = None  # API URL path to the assembled .glb, set by gltf_assembler

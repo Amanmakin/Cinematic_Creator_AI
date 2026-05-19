@@ -7,6 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from api.adapters.hybrid_adapter import HybridAdapter
 from api.orchestrator.budget import BudgetLedger
 from api.orchestrator.creative_dispatch import make_visual_generator_node
+from api.orchestrator.gltf_assembly import make_gltf_assembler_node
 from api.persistence.projects_db import get_sqlite_checkpointer
 from api.settings import settings
 from api.uar.store import UARStore
@@ -41,4 +42,12 @@ def get_graph() -> CompiledStateGraph:
         uar=get_uar(),
         ledger=get_ledger(),
     )
-    return build_graph(checkpointer=checkpointer, visual_generator_node=visual_node)
+    gltf_node = make_gltf_assembler_node(
+        uar_root=settings.uar_root,
+        renders_root=settings.renders_root,
+    )
+    return build_graph(
+        checkpointer=checkpointer,
+        visual_generator_node=visual_node,
+        gltf_assembler_node=gltf_node,
+    )

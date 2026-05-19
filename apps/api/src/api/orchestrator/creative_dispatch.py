@@ -83,8 +83,10 @@ def make_visual_generator_node(
         has_budget_exceeded = False
 
         async def _run_all() -> None:
-            for intent in state.creative_intents:
-                await _generate_one(intent, ctx, locked_paths, new_events, new_assets)
+            await asyncio.gather(*(
+                _generate_one(intent, ctx, locked_paths, new_events, new_assets)
+                for intent in state.creative_intents
+            ))
 
         try:
             loop = asyncio.get_event_loop()
@@ -101,7 +103,7 @@ def make_visual_generator_node(
             loop.run_until_complete(_run_all())
 
         has_budget_exceeded = any(e.kind == "BudgetExceeded" for e in new_events)
-        status = "budget_exceeded" if has_budget_exceeded else "visual_generating"
+        status = "budget_exceeded" if has_budget_exceeded else "model_generated"
 
         # Rewrite DSL subject asset_refs
         scene_graph = state.scene_graph
@@ -122,11 +124,19 @@ def make_visual_generator_node(
             )
             scene_graph = scene_graph.model_copy(update={"scene": updated_scene})
 
+        # Build API-accessible URLs for the generated images so the frontend
+        # can display them in the model approval viewport.
+        model_render_urls = [
+            f"/projects/{project_id}/assets/{a.id}/rgba"
+            for a in new_assets
+        ] if not has_budget_exceeded else None
+
         return {
             "generated_assets": state.generated_assets + new_assets,
             "creative_events": state.creative_events + new_events,
             "scene_graph": scene_graph,
             "execution_status": status,
+            "model_renders": model_render_urls,
         }
 
     return visual_generator_node

@@ -258,6 +258,11 @@ function WireframePanel() {
   );
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+function toAssetUrl(path: string) {
+  return path.startsWith("http") ? path : `${API_BASE}${path}`;
+}
+
 // ─── Model Approval Panel ──────────────────────────────────────────────────
 
 function ModelPanel() {
@@ -281,10 +286,10 @@ function ModelPanel() {
               <div
                 key={i}
                 className="flex-shrink-0 w-28 rounded-md overflow-hidden border border-zinc-600 bg-zinc-800 cursor-zoom-in"
-                onClick={() => setLightboxSrc(src)}
+                onClick={() => setLightboxSrc(toAssetUrl(src))}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt={`Render ${i}`} className="w-full h-16 object-cover" />
+                <img src={toAssetUrl(src)} alt={`Render ${i}`} className="w-full h-16 object-cover" />
               </div>
             ))}
           </div>

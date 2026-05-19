@@ -184,7 +184,8 @@ const STAGE_CONFIG: Record<ExecutionStage, StageConfig> = {
   },
 };
 
-// Stages that have their own dedicated approval UI — overlay hidden so viewport stays clear
+// Stages that have their own dedicated approval UI or show their own content —
+// overlay hidden so the viewport stays clear.
 const HIDDEN_STAGES: ExecutionStage[] = [
   "idle",
   "completed",
@@ -192,6 +193,7 @@ const HIDDEN_STAGES: ExecutionStage[] = [
   "awaiting_human_approval",
   "previsualization_generated",
   "model_generated",
+  "gltf_assembled",  // Three.js is now showing the real GLB
 ];
 
 // ── Cinematic corner brackets ────────────────────────────────────────────────
@@ -228,10 +230,10 @@ function CinematicSpinner({ color }: { color: string }) {
 
 function WaitingPulse({ color }: { color: string }) {
   return (
-    <div className="relative flex items-center justify-center w-16 h-16">
+    <div className="relative flex items-center justify-center w-8 h-8 shrink-0">
       <div className={`absolute inset-0 rounded-full bg-current ${color} opacity-10 animate-ping [animation-duration:2s]`} />
-      <div className={`absolute inset-3 rounded-full bg-current ${color} opacity-20 animate-ping [animation-duration:2s] [animation-delay:0.7s]`} />
-      <div className={`w-6 h-6 rounded-full bg-current ${color} animate-pulse`} />
+      <div className={`absolute inset-1 rounded-full bg-current ${color} opacity-20 animate-ping [animation-duration:2s] [animation-delay:0.7s]`} />
+      <div className={`w-3 h-3 rounded-full bg-current ${color} animate-pulse`} />
     </div>
   );
 }
@@ -347,7 +349,7 @@ export default function StageLoadingOverlay() {
   // Waiting stages show a compact banner at the bottom so the viewport stays visible
   if (config.type === "waiting") {
     return (
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none z-10 w-full max-w-sm px-4">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none z-10 w-full max-w-md px-4">
         <div
           className={[
             "relative flex items-center gap-3 px-4 py-3 rounded-xl",
@@ -357,13 +359,22 @@ export default function StageLoadingOverlay() {
           ].join(" ")}
         >
           <ViewfinderCorners color={cornerColor} />
-          <div className="text-xl select-none leading-none shrink-0">{config.emoji}</div>
+          {/* Image icon */}
+          <svg
+            className={`w-5 h-5 shrink-0 ${accentText}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+          </svg>
           <WaitingPulse color={iconColor} />
           <div className="flex-1 min-w-0">
-            <p className={`text-xs font-bold tracking-widest uppercase truncate ${accentText}`}>
+            <p className={`text-xs font-bold tracking-widest uppercase ${accentText}`}>
               {config.label}
             </p>
-            <p className="text-[11px] text-zinc-400 leading-snug truncate">{config.description}</p>
+            <p className="text-[11px] text-zinc-400 leading-snug">{config.description}</p>
           </div>
           {config.step !== null && (
             <p className="text-[10px] text-zinc-600 font-mono shrink-0">

@@ -163,6 +163,7 @@ export interface AgentState {
   generation_mode: GenerationMode;
   previsualization?: Previsualization;
   model_renders?: string[];
+  gltf_assembled_path?: string | null;
 }
 
 export interface StateCheckpoint {

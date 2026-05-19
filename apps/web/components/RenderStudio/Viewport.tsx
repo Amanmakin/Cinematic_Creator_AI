@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Center } from "@react-three/drei";
 import * as THREE from "three";
@@ -41,6 +41,14 @@ export default function Viewport({ glbUrl }: ViewportProps) {
   const wireGlbPath = agentState?.previsualization?.wireframe_glb_path;
   const wireGlbUrl = wireGlbPath ? previsUrl(wireGlbPath) : null;
 
+  const modelRenders = agentState?.model_renders ?? [];
+  // Show 2-D model renders only while waiting for model approval — once the
+  // GLB is assembled (glbUrl is set) Three.js takes over and the overlay hides.
+  const showModelRenders =
+    agentState?.execution_status === "model_generated" &&
+    modelRenders.length > 0 &&
+    !glbUrl;
+
   function handleCommit(ops: OtOp[]) {
     if (!projectId || !graph) return;
     applyOt(ops);
@@ -65,6 +73,11 @@ export default function Viewport({ glbUrl }: ViewportProps) {
           <OrbitControls makeDefault />
         </Suspense>
       </Canvas>
+
+      {/* Model renders overlay — replaces wireframe view when models are ready */}
+      {showModelRenders && (
+        <ModelRendersOverlay renders={modelRenders} />
+      )}
 
       {/* Phase loading overlay */}
       <StageLoadingOverlay />
@@ -115,5 +128,53 @@ function WireframePlaceholder() {
       </mesh>
       <gridHelper args={[10, 10, "#3f3f46", "#27272a"]} />
     </group>
+  );
+}
+
+function ModelRendersOverlay({ renders }: { renders: string[] }) {
+  const [selected, setSelected] = useState(0);
+
+  const toUrl = (path: string) =>
+    path.startsWith("http") ? path : `${API_BASE}${path}`;
+
+  return (
+    <div className="absolute inset-0 flex flex-col bg-zinc-950/95 z-10">
+      {/* Primary render */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden p-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={toUrl(renders[selected])}
+          alt="Model render"
+          className="max-w-full max-h-full object-contain rounded-lg shadow-2xl ring-1 ring-indigo-500/30"
+        />
+      </div>
+
+      {/* Thumbnail strip — only shown when there are multiple renders */}
+      {renders.length > 1 && (
+        <div className="flex gap-2 px-4 pb-3 justify-center">
+          {renders.map((src, i) => (
+            <button
+              key={i}
+              onClick={() => setSelected(i)}
+              className={[
+                "w-16 h-12 rounded-md overflow-hidden border-2 transition-colors shrink-0",
+                i === selected ? "border-indigo-400" : "border-zinc-700 hover:border-zinc-500",
+              ].join(" ")}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={toUrl(src)} alt={`Render ${i}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Label */}
+      <div className="absolute top-3 left-3 flex items-center gap-2 bg-zinc-900/80 rounded-lg px-3 py-1.5 border border-zinc-700">
+        <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+        <span className="text-xs font-medium text-zinc-200">
+          Model Render {renders.length > 1 ? `${selected + 1} / ${renders.length}` : ""}
+        </span>
+      </div>
+    </div>
   );
 }

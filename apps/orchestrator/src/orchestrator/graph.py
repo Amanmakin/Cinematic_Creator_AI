@@ -10,6 +10,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from orchestrator.nodes import (
     creative_dispatcher_node,
+    dsl_compiler_node,
     generation_mode_parser_node,
     intent_validator_node,
     physical_validation_node,
@@ -49,6 +50,7 @@ def build_graph(
     checkpointer: MemorySaver | None = None,
     interrupt_after_speculative: bool = True,
     visual_generator_node: Callable[[AgentState], dict] | None = None,
+    gltf_assembler_node: Callable[[AgentState], dict] | None = None,
 ) -> CompiledStateGraph:
     g = StateGraph(AgentState)
 
@@ -63,6 +65,11 @@ def build_graph(
         g.add_node("visual_generator", visual_generator_node)
 
     g.add_node("physical_validation", physical_validation_node)
+    g.add_node("dsl_compiler", dsl_compiler_node)
+
+    if gltf_assembler_node is not None:
+        g.add_node("gltf_assembler", gltf_assembler_node)
+
     g.add_node("speculative_batcher", speculative_batcher_node)
 
     g.set_entry_point("intent_validator")
@@ -108,15 +115,22 @@ def build_graph(
     else:
         g.add_edge("creative_dispatcher", "physical_validation")
 
+    # After validation passes: compile DSL then assemble GLB
     g.add_conditional_edges(
         "physical_validation",
         route_after_validation,
         {
             "retry": "scene_graph_generator",
             "fail": END,
-            "success": END,
+            "success": "dsl_compiler",
         },
     )
+
+    if gltf_assembler_node is not None:
+        g.add_edge("dsl_compiler", "gltf_assembler")
+        g.add_edge("gltf_assembler", END)
+    else:
+        g.add_edge("dsl_compiler", END)
 
     g.add_edge("speculative_batcher", END)
 

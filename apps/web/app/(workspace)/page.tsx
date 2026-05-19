@@ -20,6 +20,8 @@ const DEFAULT_CANON: ProjectCanon = {
   banned_terms: [],
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export default function WorkspacePage() {
   const { projectId, agentState, connect, initProject } = useProjectStore();
 
@@ -37,6 +39,12 @@ export default function WorkspacePage() {
     agentState?.execution_status === "previsualization_generated" ||
     agentState?.execution_status === "model_generated";
 
+  // Once the gltf_assembler node runs, agentState carries the URL path.
+  // Convert it to a full URL so Viewport can load it in Three.js.
+  const glbUrl = agentState?.gltf_assembled_path
+    ? `${API_BASE}${agentState.gltf_assembled_path}`
+    : null;
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left panel — elevated from bg for contrast */}
@@ -52,7 +60,7 @@ export default function WorkspacePage() {
 
       {/* Right panel */}
       <main className="flex-1 overflow-auto bg-[#09090b]">
-        <Viewport />
+        <Viewport glbUrl={glbUrl} />
       </main>
 
       {needsApproval && <ApprovalDialog />}
