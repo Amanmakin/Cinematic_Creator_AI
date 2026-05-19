@@ -6,9 +6,12 @@ No LLM calls permitted in this node.
 
 from __future__ import annotations
 
+import logging
 import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
+logger = logging.getLogger(__name__)
 
 from orchestrator import llm as llm_module
 from orchestrator.cinematics.camera_planner import CameraPlanner, PlannerConfig
@@ -54,9 +57,15 @@ def _generate_wire_geometry(state: AgentState) -> WireframeGeometry | None:
             f"Additional context: {state.intent.model_dump_json() if state.intent else ''}"
         ))
         model = llm_module.make_llm()
-        structured = model.with_structured_output(WireframeGeometry, method="function_calling")
-        return structured.invoke([system, user])
-    except Exception:
+        structured = model.with_structured_output(WireframeGeometry, include_raw=True, method="function_calling")
+        result = structured.invoke([system, user])
+        geo: WireframeGeometry = result["parsed"]
+        if geo is None:
+            logger.warning("WireframeGeometry parsing_error: %s", result.get("parsing_error"))
+            return None
+        return geo
+    except Exception as exc:
+        logger.warning("_generate_wire_geometry failed: %s", exc)
         return None
 
 

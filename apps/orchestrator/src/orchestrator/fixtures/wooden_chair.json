@@ -1,9 +1,9 @@
 {
   "IntentSpec": {
-    "subject": "wooden chair",
+    "subject": "sports water bottle",
     "setting": "",
     "mood_tags": [],
-    "duration_seconds": 30.0,
+    "duration_seconds": 0.01,
     "aspect_ratio": "16:9",
     "motion_hints": [],
     "camera_hint": null,
@@ -14,7 +14,7 @@
         "color_palette"
       ],
       "conflicting_directives": [],
-      "confidence": 0.7
+      "confidence": 0.5
     }
   },
   "BlenderDsl": {
@@ -118,8 +118,35 @@
             "clip_start": 0.01,
             "clip_end": 1000.0
           },
-          "lights": [],
-          "subjects": [],
+          "lights": [
+            {
+              "kind": "key",
+              "position": {
+                "x": -1.0,
+                "y": 0.0,
+                "z": 2.0
+              },
+              "intensity": 500.0,
+              "color_kelvin": 8000
+            }
+          ],
+          "subjects": [
+            {
+              "kind": "subject_placeholder",
+              "aabb_min": {
+                "x": -0.1,
+                "y": -0.1,
+                "z": 0.0
+              },
+              "aabb_max": {
+                "x": 0.1,
+                "y": 0.1,
+                "z": 0.3
+              },
+              "description": "A sleek, modern sports water bottle in a desaturated color palette.",
+              "asset_ref": null
+            }
+          ],
           "objects": [],
           "animations": [],
           "world": {
@@ -145,7 +172,7 @@
             "focal_mm": 50.0,
             "sensor_mm": 36.0,
             "position": {
-              "x": 0.0,
+              "x": 1.0,
               "y": 0.0,
               "z": 1.0
             },
@@ -163,8 +190,35 @@
             "clip_start": 0.01,
             "clip_end": 1000.0
           },
-          "lights": [],
-          "subjects": [],
+          "lights": [
+            {
+              "kind": "key",
+              "position": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 2.0
+              },
+              "intensity": 500.0,
+              "color_kelvin": 4000
+            }
+          ],
+          "subjects": [
+            {
+              "kind": "subject_placeholder",
+              "aabb_min": {
+                "x": -0.1,
+                "y": -0.1,
+                "z": 0.0
+              },
+              "aabb_max": {
+                "x": 0.1,
+                "y": 0.1,
+                "z": 0.3
+              },
+              "description": "A vibrant, stylish sports water bottle in a saturated color palette.",
+              "asset_ref": null
+            }
+          ],
           "objects": [],
           "animations": [],
           "world": {
@@ -208,8 +262,35 @@
             "clip_start": 0.01,
             "clip_end": 1000.0
           },
-          "lights": [],
-          "subjects": [],
+          "lights": [
+            {
+              "kind": "key",
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 2.0
+              },
+              "intensity": 300.0,
+              "color_kelvin": 6000
+            }
+          ],
+          "subjects": [
+            {
+              "kind": "subject_placeholder",
+              "aabb_min": {
+                "x": -0.1,
+                "y": -0.1,
+                "z": 0.0
+              },
+              "aabb_max": {
+                "x": 0.1,
+                "y": 0.1,
+                "z": 0.3
+              },
+              "description": "A soft, pastel-colored sports water bottle.",
+              "asset_ref": null
+            }
+          ],
           "objects": [],
           "animations": [],
           "world": {
@@ -221,6 +302,76 @@
             "hdri_ref": null
           }
         }
+      }
+    ]
+  },
+  "WireframeGeometry": {
+    "subject": "sports water bottle",
+    "primitives": [
+      {
+        "kind": "cylinder",
+        "label": "body",
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.115,
+        "width": 0.08,
+        "depth": 0.08,
+        "height": 0.23,
+        "rot_x": 0.0,
+        "rot_y": 0.0,
+        "rot_z": 0.0
+      },
+      {
+        "kind": "cylinder",
+        "label": "shoulder",
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.245,
+        "width": 0.085,
+        "depth": 0.085,
+        "height": 0.03,
+        "rot_x": 0.0,
+        "rot_y": 0.0,
+        "rot_z": 0.0
+      },
+      {
+        "kind": "cylinder",
+        "label": "neck",
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.27,
+        "width": 0.04,
+        "depth": 0.04,
+        "height": 0.04,
+        "rot_x": 0.0,
+        "rot_y": 0.0,
+        "rot_z": 0.0
+      },
+      {
+        "kind": "cylinder",
+        "label": "cap",
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.295,
+        "width": 0.045,
+        "depth": 0.045,
+        "height": 0.02,
+        "rot_x": 0.0,
+        "rot_y": 0.0,
+        "rot_z": 0.0
+      },
+      {
+        "kind": "box",
+        "label": "label_area",
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.115,
+        "width": 0.075,
+        "depth": 0.005,
+        "height": 0.1,
+        "rot_x": 0.0,
+        "rot_y": 0.0,
+        "rot_z": 0.0
       }
     ]
   }

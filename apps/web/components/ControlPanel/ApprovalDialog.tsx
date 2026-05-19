@@ -39,6 +39,141 @@ function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   );
 }
 
+// ─── Speculative Variant Panel ─────────────────────────────────────────────
+
+function SpeculativePanel() {
+  const { agentState, approve, isRunning } = useProjectStore();
+  const [customText, setCustomText] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  if (!agentState) return null;
+
+  return (
+    <>
+      <p className="text-sm text-slate-400">
+        The engine generated {agentState.speculative_variants.length} variants.
+        Pick one to continue rendering, or describe your own.
+      </p>
+      <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1">
+        {agentState.speculative_variants.map((variant: BlenderDsl, i: number) => {
+          const scene = variant.scene;
+          const focal = scene?.camera?.focal_mm ?? 50;
+          const dur   = scene?.duration_s ?? 0;
+          const fps   = scene?.fps ?? 24;
+          const lights = scene?.lights ?? [];
+          const subjects = scene?.subjects ?? [];
+          const keyLight = lights.find((l: { kind: string }) => l.kind === "key");
+          const lensLabel =
+            focal <= 28  ? "Ultra-wide" :
+            focal <= 40  ? "Wide"        :
+            focal <= 65  ? "Normal"      :
+            focal <= 100 ? "Portrait"    : "Telephoto";
+          const moodKelvin = keyLight?.color_kelvin ?? 5600;
+          const lightMood =
+            moodKelvin < 3500 ? "Warm / golden" :
+            moodKelvin < 5000 ? "Neutral"        :
+            moodKelvin < 7000 ? "Daylight"       : "Cool / overcast";
+
+          return (
+            <button
+              key={i}
+              className="bg-surface border border-border hover:border-accent rounded-lg p-3 text-left transition-colors group"
+              disabled={isRunning}
+              onClick={() => approve("select_variant", { variant_index: i })}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-accent">
+                  Variant {String.fromCharCode(65 + i)}
+                </span>
+                <span className="text-[10px] text-slate-500 group-hover:text-slate-300 transition-colors">
+                  {dur.toFixed(1)}s · {fps} fps
+                </span>
+              </div>
+
+              <div className="flex gap-4 mb-2">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Lens</span>
+                  <span className="text-xs text-slate-200">{focal}mm</span>
+                  <span className="text-[10px] text-slate-500">{lensLabel}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Lighting</span>
+                  <span className="text-xs text-slate-200">{lightMood}</span>
+                  <span className="text-[10px] text-slate-500">{lights.length} light{lights.length !== 1 ? "s" : ""}</span>
+                </div>
+                {subjects.length > 0 && (
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">Subject</span>
+                    <span className="text-xs text-slate-200 truncate">
+                      {subjects[0]?.description ?? "—"}
+                    </span>
+                    {subjects.length > 1 && (
+                      <span className="text-[10px] text-slate-500">+{subjects.length - 1} more</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="w-full h-1 bg-border rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent/60 rounded-full"
+                  style={{ width: `${Math.min((dur / 30) * 100, 100)}%` }}
+                />
+              </div>
+            </button>
+          );
+        })}
+
+        {/* Custom variant card */}
+        <div
+          className={`border rounded-lg p-3 transition-colors ${
+            showCustom
+              ? "bg-surface border-accent"
+              : "bg-surface border-border hover:border-accent cursor-pointer"
+          }`}
+          onClick={() => { if (!showCustom) setShowCustom(true); }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-accent">Custom</span>
+            <span className="text-[10px] text-slate-500">Describe your own</span>
+          </div>
+
+          {!showCustom ? (
+            <p className="text-xs text-slate-500">
+              Click to describe exactly what you want — lens, lighting, subject, mood, etc.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+              <textarea
+                autoFocus
+                className="bg-black/30 border border-border rounded-md p-2 text-sm text-slate-200 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600 w-full"
+                placeholder="e.g. A matte black water bottle, 85mm portrait lens, warm rim lighting from the left, dark studio background…"
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 bg-accent hover:bg-indigo-500 disabled:opacity-40 text-white text-sm rounded-md py-2 transition-colors"
+                  disabled={isRunning || !customText.trim()}
+                  onClick={() => approve("modify", { modified_prompt: customText.trim() })}
+                >
+                  Generate Custom Variant
+                </button>
+                <button
+                  className="px-3 bg-surface border border-border hover:border-slate-400 text-slate-400 text-sm rounded-md py-2 transition-colors"
+                  onClick={() => { setShowCustom(false); setCustomText(""); }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Wireframe Approval Panel ──────────────────────────────────────────────
 
 function WireframePanel() {
@@ -62,7 +197,6 @@ function WireframePanel() {
           <span className="text-slate-200">{previs?.palette_hint}</span>.
         </p>
 
-        {/* Thumbnail strip */}
         {previs && previs.frames.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {previs.frames.map((frame: WireframeFrame) => (
@@ -91,7 +225,6 @@ function WireframePanel() {
           </div>
         )}
 
-        {/* Revision notes */}
         <textarea
           className="bg-surface border border-border rounded-md p-3 text-sm text-slate-200 resize-none h-16 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600"
           placeholder="Revision notes (required for Modify)…"
@@ -162,7 +295,6 @@ function ModelPanel() {
           {modelRenders.length !== 1 ? "s" : ""} generated.
         </p>
 
-        {/* Model renders */}
         {modelRenders.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {modelRenders.map((src: string, i: number) => (
@@ -182,7 +314,6 @@ function ModelPanel() {
           </div>
         )}
 
-        {/* Collapsible wireframe reference */}
         {previs && previs.frames.length > 0 && (
           <div>
             <button
@@ -212,7 +343,6 @@ function ModelPanel() {
           </div>
         )}
 
-        {/* Revision notes */}
         <textarea
           className="bg-surface border border-border rounded-md p-3 text-sm text-slate-200 resize-none h-16 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-slate-600"
           placeholder="Revision notes (required for Modify)…"
@@ -315,87 +445,7 @@ export default function ApprovalDialog() {
           </>
         )}
 
-        {isSpeculative && (
-          <>
-            <p className="text-sm text-slate-400">
-              The engine generated {agentState.speculative_variants.length} variants.
-              Pick one to continue rendering.
-            </p>
-            <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
-              {agentState.speculative_variants.map((variant: BlenderDsl, i: number) => {
-                const scene = variant.scene;
-                const focal = scene?.camera?.focal_mm ?? 50;
-                const dur   = scene?.duration_s ?? 0;
-                const fps   = scene?.fps ?? 24;
-                const lights = scene?.lights ?? [];
-                const subjects = scene?.subjects ?? [];
-                const keyLight = lights.find((l: { kind: string }) => l.kind === "key");
-                const lensLabel =
-                  focal <= 28  ? "Ultra-wide" :
-                  focal <= 40  ? "Wide"        :
-                  focal <= 65  ? "Normal"      :
-                  focal <= 100 ? "Portrait"    : "Telephoto";
-                const moodKelvin = keyLight?.color_kelvin ?? 5600;
-                const lightMood =
-                  moodKelvin < 3500 ? "Warm / golden" :
-                  moodKelvin < 5000 ? "Neutral"        :
-                  moodKelvin < 7000 ? "Daylight"       : "Cool / overcast";
-
-                return (
-                  <button
-                    key={i}
-                    className="bg-surface border border-border hover:border-accent rounded-lg p-3 text-left transition-colors group"
-                    disabled={isRunning}
-                    onClick={() => approve("select_variant", { variant_index: i })}
-                  >
-                    {/* Header row */}
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-accent">
-                        Variant {String.fromCharCode(65 + i)}
-                      </span>
-                      <span className="text-[10px] text-slate-500 group-hover:text-slate-300 transition-colors">
-                        {dur.toFixed(1)}s · {fps} fps
-                      </span>
-                    </div>
-
-                    {/* Camera + lighting row */}
-                    <div className="flex gap-4 mb-2">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wider">Lens</span>
-                        <span className="text-xs text-slate-200">{focal}mm</span>
-                        <span className="text-[10px] text-slate-500">{lensLabel}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wider">Lighting</span>
-                        <span className="text-xs text-slate-200">{lightMood}</span>
-                        <span className="text-[10px] text-slate-500">{lights.length} light{lights.length !== 1 ? "s" : ""}</span>
-                      </div>
-                      {subjects.length > 0 && (
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">Subject</span>
-                          <span className="text-xs text-slate-200 truncate">
-                            {subjects[0]?.description ?? "—"}
-                          </span>
-                          {subjects.length > 1 && (
-                            <span className="text-[10px] text-slate-500">+{subjects.length - 1} more</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Duration bar */}
-                    <div className="w-full h-1 bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-accent/60 rounded-full"
-                        style={{ width: `${Math.min((dur / 30) * 100, 100)}%` }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
+        {isSpeculative && <SpeculativePanel />}
 
         {isWireframe && <WireframePanel />}
 

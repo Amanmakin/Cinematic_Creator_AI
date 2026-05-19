@@ -48,7 +48,21 @@ async def approve(project_id: str, body: ApprovalRequest):
     config = {"configurable": {"thread_id": project_id}}
 
     snapshot = graph.get_state(config)
-    if not snapshot or not snapshot.next:
+    if not snapshot or not snapshot.values:
+        raise HTTPException(status_code=409, detail="No project state found")
+
+    # snapshot.next is empty when the interrupt is at a terminal edge (→ __end__),
+    # so gate on execution_status instead of snapshot.next.
+    current_status = snapshot.values.get("execution_status", "idle")
+    _approvable = {
+        "speculative_batching",
+        "awaiting_human_approval",
+        "previsualization_generated",
+        "previsualization_feedback",
+        "model_generated",
+        "model_feedback",
+    }
+    if not snapshot.next and current_status not in _approvable:
         raise HTTPException(status_code=409, detail="No pending interrupt for this project")
 
     # ------------------------------------------------------------------
