@@ -45,6 +45,7 @@ def get_graph() -> CompiledStateGraph:
     gltf_node = make_gltf_assembler_node(
         uar_root=settings.uar_root,
         renders_root=settings.renders_root,
+        previs_root=settings.previs_output_dir,
     )
     return build_graph(
         checkpointer=checkpointer,

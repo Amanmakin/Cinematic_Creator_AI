@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import AsyncGenerator, Literal
 
 from fastapi import APIRouter, HTTPException
@@ -10,7 +9,7 @@ from api.dag.reducers import record_event
 from api.graph_dep import get_graph
 from api.memory.retrieval import record_rejection
 from api.persistence.projects_db import project_exists
-from api.ws.broadcaster import broadcast
+from api.ws.broadcaster import _dumps, broadcast
 
 router = APIRouter()
 
@@ -216,15 +215,23 @@ async def approve(project_id: str, body: ApprovalRequest):
 
     async def resume_stream() -> AsyncGenerator[dict, None]:
         loop = asyncio.get_event_loop()
+        queue: asyncio.Queue = asyncio.Queue()
 
         def _stream():
-            return list(graph.stream(None, config, stream_mode="values"))
+            try:
+                for chunk in graph.stream(None, config, stream_mode="values"):
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
 
-        chunks = await loop.run_in_executor(None, _stream)
-        for chunk in chunks:
-            payload = json.dumps(chunk, default=str)
+        loop.run_in_executor(None, _stream)
+
+        while True:
+            chunk = await queue.get()
+            if chunk is None:
+                break
             await broadcast(project_id, {"type": "state", "data": chunk})
-            yield {"event": "state", "data": payload}
+            yield {"event": "state", "data": _dumps(chunk)}
 
         yield {"event": "done", "data": "{}"}
 

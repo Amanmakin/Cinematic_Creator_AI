@@ -15,6 +15,7 @@ Given a subject description, decompose it into **10–20 geometric primitives** 
 9. Rotations are in **degrees** (rot_x, rot_y, rot_z). Horizontal cylinders need rot_x = 90.
 10. **Symmetric objects**: always include both left and right counterparts (front_leg_L + front_leg_R, etc.).
 11. **Include all structural connectors**: stretchers, rails, crossbars — these are what make the silhouette read correctly from every angle.
+12. **Set `material_hint`** on every primitive to one of: `"wood"`, `"metal"`, `"plastic"`, `"fabric"`, `"glass"`, `"stone"`, `"default"`. Infer from the subject description — a wooden chair gets `"wood"` on all structural parts; a metal stool gets `"metal"`; upholstered surfaces get `"fabric"`. This drives the wireframe tint colour.
 
 ## Detailed example — Wooden dining chair (0.46 m wide, 0.46 m deep, 0.90 m tall)
 
@@ -24,20 +25,20 @@ The chair has 9 named structural parts, modelled as 14 primitives:
 {
   "subject": "wooden dining chair",
   "primitives": [
-    {"kind":"cylinder","label":"front_leg_L","x":-0.18,"y":-0.18,"z":0.225,"width":0.04,"depth":0.04,"height":0.45,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"front_leg_R","x": 0.18,"y":-0.18,"z":0.225,"width":0.04,"depth":0.04,"height":0.45,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"back_leg_L", "x":-0.18,"y": 0.18,"z":0.45, "width":0.04,"depth":0.04,"height":0.90,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"back_leg_R", "x": 0.18,"y": 0.18,"z":0.45, "width":0.04,"depth":0.04,"height":0.90,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"box",     "label":"seat",       "x":0.0,  "y":0.0, "z":0.475,"width":0.44,"depth":0.44,"height":0.05,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"stretcher_front","x":0.0,"y":-0.18,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":0,"rot_y":0,"rot_z":90},
-    {"kind":"cylinder","label":"stretcher_back", "x":0.0,"y": 0.18,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":0,"rot_y":0,"rot_z":90},
-    {"kind":"cylinder","label":"stretcher_side_L","x":-0.18,"y":0.0,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":90,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"stretcher_side_R","x": 0.18,"y":0.0,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":90,"rot_y":0,"rot_z":0},
-    {"kind":"box",     "label":"backrest_lower_rail","x":0.0,"y":0.18,"z":0.58,"width":0.38,"depth":0.04,"height":0.06,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"box",     "label":"backrest_upper_rail","x":0.0,"y":0.18,"z":0.82,"width":0.40,"depth":0.05,"height":0.08,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"backrest_slat_L","x":-0.10,"y":0.18,"z":0.70,"width":0.025,"depth":0.025,"height":0.24,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"backrest_slat_M","x":0.0,  "y":0.18,"z":0.70,"width":0.025,"depth":0.025,"height":0.24,"rot_x":0,"rot_y":0,"rot_z":0},
-    {"kind":"cylinder","label":"backrest_slat_R","x": 0.10,"y":0.18,"z":0.70,"width":0.025,"depth":0.025,"height":0.24,"rot_x":0,"rot_y":0,"rot_z":0}
+    {"kind":"cylinder","label":"front_leg_L","x":-0.18,"y":-0.18,"z":0.225,"width":0.04,"depth":0.04,"height":0.45,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"front_leg_R","x": 0.18,"y":-0.18,"z":0.225,"width":0.04,"depth":0.04,"height":0.45,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"back_leg_L", "x":-0.18,"y": 0.18,"z":0.45, "width":0.04,"depth":0.04,"height":0.90,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"back_leg_R", "x": 0.18,"y": 0.18,"z":0.45, "width":0.04,"depth":0.04,"height":0.90,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"box",     "label":"seat",       "x":0.0,  "y":0.0, "z":0.475,"width":0.44,"depth":0.44,"height":0.05,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"stretcher_front","x":0.0,"y":-0.18,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":0,"rot_y":0,"rot_z":90,"material_hint":"wood"},
+    {"kind":"cylinder","label":"stretcher_back", "x":0.0,"y": 0.18,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":0,"rot_y":0,"rot_z":90,"material_hint":"wood"},
+    {"kind":"cylinder","label":"stretcher_side_L","x":-0.18,"y":0.0,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":90,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"stretcher_side_R","x": 0.18,"y":0.0,"z":0.15,"width":0.03,"depth":0.03,"height":0.36,"rot_x":90,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"box",     "label":"backrest_lower_rail","x":0.0,"y":0.18,"z":0.58,"width":0.38,"depth":0.04,"height":0.06,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"box",     "label":"backrest_upper_rail","x":0.0,"y":0.18,"z":0.82,"width":0.40,"depth":0.05,"height":0.08,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"backrest_slat_L","x":-0.10,"y":0.18,"z":0.70,"width":0.025,"depth":0.025,"height":0.24,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"backrest_slat_M","x":0.0,  "y":0.18,"z":0.70,"width":0.025,"depth":0.025,"height":0.24,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"},
+    {"kind":"cylinder","label":"backrest_slat_R","x": 0.10,"y":0.18,"z":0.70,"width":0.025,"depth":0.025,"height":0.24,"rot_x":0,"rot_y":0,"rot_z":0,"material_hint":"wood"}
   ]
 }
 ```

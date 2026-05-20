@@ -294,19 +294,34 @@ function FilmStepper({ currentStep }: { currentStep: number }) {
   );
 }
 
+// Maps an approval-waiting stage to the progress stage that follows it.
+// Used to show the right label while isRunning=true but the backend hasn't
+// sent a state update yet (the approval is in-flight).
+const APPROVAL_NEXT_STAGE: Partial<Record<ExecutionStage, ExecutionStage>> = {
+  previsualization_generated: "previsualization_approved",
+  model_generated: "model_approved",
+  awaiting_human_approval: "intent_validated",
+  speculative_batching: "scene_graph_generated",
+};
+
 // ── Main overlay ─────────────────────────────────────────────────────────────
 
 export default function StageLoadingOverlay() {
   const { agentState, isRunning, error } = useProjectStore();
 
   const status = agentState?.execution_status ?? "idle";
-  const config = STAGE_CONFIG[status] ?? STAGE_CONFIG.idle;
+  // While the pipeline is actively running after an approval, the status may
+  // still reflect the "awaiting" stage before the first SSE update arrives.
+  // Override to show the next progress stage so the UI looks live immediately.
+  const effectiveStatus =
+    isRunning && APPROVAL_NEXT_STAGE[status] ? APPROVAL_NEXT_STAGE[status]! : status;
+  const config = STAGE_CONFIG[effectiveStatus] ?? STAGE_CONFIG.idle;
 
   const isVisible =
     isRunning ||
-    (config.type === "error" && !HIDDEN_STAGES.includes(status)) ||
-    (config.type === "waiting" && !HIDDEN_STAGES.includes(status)) ||
-    (config.type === "progress" && !HIDDEN_STAGES.includes(status));
+    (config.type === "error" && !HIDDEN_STAGES.includes(effectiveStatus)) ||
+    (config.type === "waiting" && !HIDDEN_STAGES.includes(effectiveStatus)) ||
+    (config.type === "progress" && !HIDDEN_STAGES.includes(effectiveStatus));
 
   if (!isVisible) return null;
 
@@ -436,7 +451,7 @@ export default function StageLoadingOverlay() {
         )}
 
         {/* Monospace status key */}
-        <p className="text-[10px] text-zinc-500 font-mono tracking-wide">{status}</p>
+        <p className="text-[10px] text-zinc-500 font-mono tracking-wide">{effectiveStatus}</p>
       </div>
     </div>
   );

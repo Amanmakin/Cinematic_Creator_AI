@@ -47,14 +47,48 @@ def _infer_emotional_intensity(state: AgentState) -> float:
     return min(1.0, 0.3 + hits * 0.2)
 
 
+_MATERIAL_KEYWORDS: list[tuple[str, list[str]]] = [
+    ("wood",    ["wood", "wooden", "timber", "oak", "pine", "walnut", "mahogany", "teak"]),
+    ("metal",   ["metal", "steel", "iron", "alumin", "chrome", "brass", "copper"]),
+    ("plastic", ["plastic", "polym", "acrylic", "resin", "pvc"]),
+    ("fabric",  ["fabric", "cloth", "upholster", "velvet", "leather", "cushion"]),
+    ("glass",   ["glass", "crystal", "transparent"]),
+    ("stone",   ["stone", "rock", "marble", "granite", "concrete", "brick"]),
+]
+
+
+def _infer_material_from_subject(subject: str) -> str:
+    low = subject.lower()
+    for hint, keywords in _MATERIAL_KEYWORDS:
+        if any(k in low for k in keywords):
+            return hint
+    return "default"
+
+
+def _apply_material_hints(geo: WireframeGeometry, subject: str) -> WireframeGeometry:
+    """Override material_hint on all primitives that the LLM left as 'default'."""
+    if all(p.material_hint == "default" for p in geo.primitives):
+        inferred = _infer_material_from_subject(subject)
+        if inferred != "default":
+            for p in geo.primitives:
+                p.material_hint = inferred
+    return geo
+
+
 def _generate_wire_geometry(state: AgentState) -> WireframeGeometry | None:
     """Ask the LLM to decompose the subject into renderable primitives."""
     try:
         system = SystemMessage(content=llm_module.load_prompt("wire_geometry_system.md"))
         subject = state.intent.subject if state.intent else "object"
+        feedback_section = (
+            f"\nUser feedback on the previous wireframe (MUST be addressed): {state.previsualization_feedback}\n"
+            if state.previsualization_feedback
+            else ""
+        )
         user = HumanMessage(content=(
             f"Subject: {subject}\n"
             f"Additional context: {state.intent.model_dump_json() if state.intent else ''}"
+            f"{feedback_section}"
         ))
         model = llm_module.make_llm()
         structured = model.with_structured_output(WireframeGeometry, include_raw=True, method="function_calling")
@@ -83,6 +117,8 @@ def wireframe_previs_generator_node(state: AgentState) -> dict:
     ) as out:
         # LLM decomposes the subject into geometric primitives dynamically
         wire_geometry = _generate_wire_geometry(state)
+        if wire_geometry and state.intent:
+            wire_geometry = _apply_material_hints(wire_geometry, state.intent.subject)
 
         planner_config = PlannerConfig(
             pacing="slow" if state.scene_graph.scene.duration_s > 15 else "medium",

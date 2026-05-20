@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pygltflib
 
+from api.uar import paths as uar_paths
 from orchestrator.schemas.dsl import BlenderDsl, PlaneCard
 
 if TYPE_CHECKING:
@@ -139,7 +140,7 @@ def _grid_indices(grid: int) -> bytes:
     return np.array(tris, dtype=np.uint32).tobytes()
 
 
-def build_glb(dsl: BlenderDsl, uar_root: str, out_dir: str) -> str:
+def build_glb(dsl: BlenderDsl, uar_root: str, out_dir: str, project_id: str = "") -> str:
     """Assemble a .glb from BlenderDsl and UAR assets.
 
     Returns the path to the written .glb file.
@@ -172,8 +173,12 @@ def build_glb(dsl: BlenderDsl, uar_root: str, out_dir: str) -> str:
         rot = obj.transform.rotation_euler
         scl = obj.transform.scale
 
-        rgba_path = str(Path(uar_root) / obj.asset_id / "rgba.png")
-        depth_path = str(Path(uar_root) / obj.asset_id / "depth.png")
+        if project_id:
+            rgba_path = uar_paths.rgba_path(uar_root, project_id, obj.asset_id)
+            depth_path = uar_paths.depth_map_path(uar_root, project_id, obj.asset_id)
+        else:
+            rgba_path = str(Path(uar_root) / obj.asset_id / "rgba.png")
+            depth_path = str(Path(uar_root) / obj.asset_id / "depth.png")
 
         rgba_bytes = _load_rgba_bytes(rgba_path)
         depth_bytes = _load_rgba_bytes(depth_path)

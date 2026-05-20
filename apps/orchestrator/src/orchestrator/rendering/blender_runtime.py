@@ -37,17 +37,44 @@ scene.render.resolution_x, scene.render.resolution_y = data["resolution"]
 
 world = bpy.data.worlds.new("PrevisWorld")
 world.use_nodes = False
-world.color = (0.09, 0.09, 0.11)
+world.color = (0.05, 0.05, 0.08)
 scene.world = world
 shading = scene.display.shading
-shading.background_type      = "WORLD"
-shading.type                 = "WIREFRAME"
+shading.background_type = "WORLD"
+# Blender 5.x: WIREFRAME render mode produces blank images; use SOLID+FLAT instead
+shading.type = "SOLID"
 try:
-    shading.wireframe_color_type = "OBJECT"
+    shading.light = "FLAT"
+except (TypeError, AttributeError):
+    pass
+try:
+    shading.color_type = "MATERIAL"
+except (TypeError, AttributeError):
+    pass
+try:
+    shading.show_object_outline = True
+    shading.object_outline_color = (0.78, 0.80, 0.90)
 except (TypeError, AttributeError):
     pass
 
-WIRE_COLOR = (0.87, 0.87, 0.87, 1.0)
+MATERIAL_COLORS = {
+    "wood":    (0.55, 0.35, 0.18, 1.0),
+    "metal":   (0.65, 0.67, 0.70, 1.0),
+    "plastic": (0.30, 0.55, 0.75, 1.0),
+    "fabric":  (0.60, 0.45, 0.55, 1.0),
+    "glass":   (0.70, 0.85, 0.90, 1.0),
+    "stone":   (0.55, 0.52, 0.48, 1.0),
+    "default": (0.33, 0.36, 0.48, 1.0),
+}
+_mat_cache = {}
+
+def get_material(hint):
+    if hint not in _mat_cache:
+        rgba = MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
+        mat = bpy.data.materials.new(name=f"mat_{hint}")
+        mat.diffuse_color = rgba
+        _mat_cache[hint] = mat
+    return _mat_cache[hint]
 
 def build_primitive(p):
     kind = p.get("kind", "box")
@@ -79,7 +106,9 @@ def build_primitive(p):
         bpy.ops.object.mode_set(mode="OBJECT")
     obj.rotation_euler = (rx, ry, rz)
     obj.name = p.get("label", kind)
-    obj.color = WIRE_COLOR
+    mat_hint = p.get("material_hint", "default")
+    obj.data.materials.clear()
+    obj.data.materials.append(get_material(mat_hint))
     return obj
 
 primitives = data.get("primitives", [])
@@ -277,17 +306,44 @@ scene.render.filepath                   = data["output_path"]
 
 world = bpy.data.worlds.new("PrevisWorld")
 world.use_nodes = False
-world.color = (0.09, 0.09, 0.11)
+world.color = (0.05, 0.05, 0.08)
 scene.world = world
 shading = scene.display.shading
-shading.background_type      = "WORLD"
-shading.type                 = "WIREFRAME"
+shading.background_type = "WORLD"
+# Blender 5.x: WIREFRAME render mode produces blank images; use SOLID+FLAT instead
+shading.type = "SOLID"
 try:
-    shading.wireframe_color_type = "OBJECT"
+    shading.light = "FLAT"
+except (TypeError, AttributeError):
+    pass
+try:
+    shading.color_type = "MATERIAL"
+except (TypeError, AttributeError):
+    pass
+try:
+    shading.show_object_outline = True
+    shading.object_outline_color = (0.78, 0.80, 0.90)
 except (TypeError, AttributeError):
     pass
 
-WIRE_COLOR = (0.87, 0.87, 0.87, 1.0)
+MATERIAL_COLORS = {
+    "wood":    (0.55, 0.35, 0.18, 1.0),
+    "metal":   (0.65, 0.67, 0.70, 1.0),
+    "plastic": (0.30, 0.55, 0.75, 1.0),
+    "fabric":  (0.60, 0.45, 0.55, 1.0),
+    "glass":   (0.70, 0.85, 0.90, 1.0),
+    "stone":   (0.55, 0.52, 0.48, 1.0),
+    "default": (0.33, 0.36, 0.48, 1.0),
+}
+_mat_cache = {}
+
+def get_material(hint):
+    if hint not in _mat_cache:
+        rgba = MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
+        mat = bpy.data.materials.new(name=f"mat_{hint}")
+        mat.diffuse_color = rgba
+        _mat_cache[hint] = mat
+    return _mat_cache[hint]
 
 # ── Primitive builder ─────────────────────────────────────────────────────────
 def render_primitive(p):
@@ -320,7 +376,9 @@ def render_primitive(p):
 
     obj.rotation_euler = (rx, ry, rz)
     obj.name = p.get("label", kind)
-    obj.color = WIRE_COLOR
+    mat_hint = p.get("material_hint", "default")
+    obj.data.materials.clear()
+    obj.data.materials.append(get_material(mat_hint))
     return obj
 
 # ── Build scene from LLM primitives (or fall back to subject AABBs) ───────────

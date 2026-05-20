@@ -23,7 +23,7 @@ class LocalDockerAdapter:
     """HTTP client that delegates image generation to a local Docker diffusers service."""
 
     name = "local_diffusers"
-    version = "1.0.0"
+    version = "1.1.0"  # bumped: Blender 5.x wireframe fix → better SD conditioning
 
     def __init__(
         self,

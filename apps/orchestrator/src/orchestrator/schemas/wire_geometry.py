@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+MaterialHint = Literal["wood", "metal", "plastic", "fabric", "glass", "stone", "default"]
+
 
 class WirePrimitive(BaseModel):
     kind: Literal["box", "cylinder", "sphere"]
@@ -17,6 +19,10 @@ class WirePrimitive(BaseModel):
     rot_x: float = 0.0
     rot_y: float = 0.0
     rot_z: float = 0.0
+    material_hint: MaterialHint = Field(
+        default="default",
+        description="Dominant material of this part — used to tint the wireframe colour.",
+    )
 
 
 class WireframeGeometry(BaseModel):
