@@ -20,16 +20,18 @@ from orchestrator.schemas.wire_geometry import WireframeGeometry
 def _primitives_from_geometry(geo: WireframeGeometry) -> list[dict]:
     return [
         {
-            "kind":          p.kind,
-            "label":         p.label,
+            "kind":               p.kind,
+            "label":              p.label,
             "x": p.x, "y": p.y, "z": p.z,
-            "width":         p.width,
-            "depth":         p.depth,
-            "height":        p.height,
-            "rot_x":         p.rot_x,
-            "rot_y":         p.rot_y,
-            "rot_z":         p.rot_z,
-            "material_hint": p.material_hint,
+            "width":              p.width,
+            "depth":              p.depth,
+            "height":             p.height,
+            "rot_x":              p.rot_x,
+            "rot_y":              p.rot_y,
+            "rot_z":              p.rot_z,
+            "material_hint":      p.material_hint,
+            "color_hex":          p.color_hex,
+            "gradient_bottom_hex": p.gradient_bottom_hex,
         }
         for p in geo.primitives
     ]

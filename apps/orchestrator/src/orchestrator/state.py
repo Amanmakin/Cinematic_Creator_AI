@@ -98,3 +98,4 @@ class AgentState(BaseModel):
     model_renders: list[str] | None = None
     model_feedback: str | None = None
     gltf_assembled_path: str | None = None  # API URL path to the assembled .glb, set by gltf_assembler
+    sample_image_urls: list[str] = Field(default_factory=list)  # reference images uploaded with the prompt

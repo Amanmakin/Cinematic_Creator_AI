@@ -16,5 +16,6 @@ Hard requirements:
 6. `scene.camera.position` MUST NOT be inside any `SubjectPlaceholder` AABB.
 7. `scene.lights` MUST include at least one light with `kind == "key"`. Intensity in [0, 10000]; `color_kelvin` in [1000, 20000].
 8. `scene.subjects` SHOULD include at least one `SubjectPlaceholder` describing the main subject's bounding volume.
+   - `description` MUST include material/texture details from the intent (e.g. "translucent blue plastic water bottle", "brushed aluminium can"). This string is fed verbatim into the image-generation prompt, so be specific about colour, finish, and texture.
 
 Return ONLY the `BlenderDsl` JSON — no commentary.

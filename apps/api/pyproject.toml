@@ -24,6 +24,7 @@ dependencies = [
     "openai>=1.30.0",
     "numpy>=2.4.5",
     "tiktoken>=0.7.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

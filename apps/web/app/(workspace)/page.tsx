@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import ApprovalDialog from "@/components/ControlPanel/ApprovalDialog";
 import BudgetIndicator from "@/components/ControlPanel/BudgetIndicator";
-import LockManager from "@/components/ControlPanel/LockManager";
 import PhaseStatusBar from "@/components/ControlPanel/PhaseStatusBar";
 import PromptComposer from "@/components/ControlPanel/PromptComposer";
 import Timeline from "@/components/ControlPanel/Timeline";
@@ -23,15 +22,18 @@ const DEFAULT_CANON: ProjectCanon = {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function WorkspacePage() {
-  const { projectId, agentState, connect, initProject } = useProjectStore();
+  const { projectId, agentState, connect, initProject, setProjectId } = useProjectStore();
 
+  // Runs only on the client — safe to access localStorage here.
   useEffect(() => {
-    if (projectId) {
-      connect();
+    const saved = localStorage.getItem("cvc_project_id");
+    if (saved) {
+      setProjectId(saved); // restores ID → triggers connect()
     } else {
-      initProject(DEFAULT_CANON);
+      initProject(DEFAULT_CANON); // first-ever load → creates project
     }
-  }, [projectId, connect, initProject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const needsApproval =
     agentState?.execution_status === "awaiting_human_approval" ||
@@ -53,7 +55,6 @@ export default function WorkspacePage() {
         <PromptComposer />
         <PhaseStatusBar />
         <Timeline />
-        <LockManager />
         <BudgetIndicator />
         {projectId && <SettingsDrawer projectId={projectId} />}
       </aside>

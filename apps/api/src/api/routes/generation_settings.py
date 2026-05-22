@@ -16,33 +16,43 @@ router = APIRouter()
 class GenerationConfig(BaseModel):
     strategy: str = Field(
         default="local_fallback",
-        description="local_only | local_fallback",
+        description="local_only | local_fallback | openai_dalle",
     )
     use_smaller_models: bool = Field(
         default=True,
         description="Use SD1.5 instead of SDXL locally (faster, lower quality)",
     )
     timeout_local_sec: int = Field(default=600, ge=10, le=600)
+    timeout_replicate_sec: int = Field(default=120, ge=10, le=600)
 
 
-_VALID_STRATEGIES = {"local_only", "local_fallback"}
+_VALID_STRATEGIES = {"local_only", "local_fallback", "openai_dalle"}
 
 _DEFAULTS = GenerationConfig(
     strategy=settings.generation_strategy,
     use_smaller_models=settings.use_smaller_models_locally,
     timeout_local_sec=settings.generation_timeout_local,
+    timeout_replicate_sec=120,
 )
 
 
 async def _ensure_table(db: aiosqlite.Connection) -> None:
     await db.execute("""
         CREATE TABLE IF NOT EXISTS generation_settings (
-            project_id          TEXT PRIMARY KEY,
-            strategy            TEXT NOT NULL,
-            use_smaller_models  INTEGER NOT NULL,
-            timeout_local_sec   INTEGER NOT NULL
+            project_id              TEXT PRIMARY KEY,
+            strategy                TEXT NOT NULL,
+            use_smaller_models      INTEGER NOT NULL,
+            timeout_local_sec       INTEGER NOT NULL,
+            timeout_replicate_sec   INTEGER NOT NULL DEFAULT 120
         )
     """)
+    # Migrate existing rows that predate the timeout_replicate_sec column
+    try:
+        await db.execute(
+            "ALTER TABLE generation_settings ADD COLUMN timeout_replicate_sec INTEGER NOT NULL DEFAULT 120"
+        )
+    except Exception:
+        pass  # column already exists
     await db.commit()
 
 
@@ -51,7 +61,7 @@ async def _fetch_config(project_id: str) -> GenerationConfig | None:
         await _ensure_table(db)
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT project_id, strategy, use_smaller_models, timeout_local_sec FROM generation_settings WHERE project_id = ?",
+            "SELECT strategy, use_smaller_models, timeout_local_sec, timeout_replicate_sec FROM generation_settings WHERE project_id = ?",
             (project_id,),
         ) as cur:
             row = await cur.fetchone()
@@ -61,6 +71,7 @@ async def _fetch_config(project_id: str) -> GenerationConfig | None:
         strategy=row["strategy"],
         use_smaller_models=bool(row["use_smaller_models"]),
         timeout_local_sec=row["timeout_local_sec"],
+        timeout_replicate_sec=row["timeout_replicate_sec"],
     )
 
 
@@ -69,17 +80,19 @@ async def _upsert_config(project_id: str, config: GenerationConfig) -> None:
         await _ensure_table(db)
         await db.execute(
             """INSERT INTO generation_settings
-               (project_id, strategy, use_smaller_models, timeout_local_sec)
-               VALUES (?, ?, ?, ?)
+               (project_id, strategy, use_smaller_models, timeout_local_sec, timeout_replicate_sec)
+               VALUES (?, ?, ?, ?, ?)
                ON CONFLICT(project_id) DO UPDATE SET
                    strategy = excluded.strategy,
                    use_smaller_models = excluded.use_smaller_models,
-                   timeout_local_sec = excluded.timeout_local_sec""",
+                   timeout_local_sec = excluded.timeout_local_sec,
+                   timeout_replicate_sec = excluded.timeout_replicate_sec""",
             (
                 project_id,
                 config.strategy,
                 int(config.use_smaller_models),
                 config.timeout_local_sec,
+                config.timeout_replicate_sec,
             ),
         )
         await db.commit()

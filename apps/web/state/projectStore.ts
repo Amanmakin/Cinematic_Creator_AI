@@ -27,12 +27,18 @@ interface ProjectState {
   initProject: (canon: ProjectCanon) => Promise<void>;
   setProjectId: (id: string) => void;
   connect: () => void;
-  submitPrompt: (prompt: string) => Promise<void>;
+  submitPrompt: (prompt: string, sampleImageUrls?: string[]) => Promise<void>;
   approve: (decision: ApproveDecision, opts?: ApproveOpts) => Promise<void>;
   addLock: (path: string, reason: string, asset_id?: string) => Promise<void>;
   removeLock: (path: string) => Promise<void>;
   forkTo: (checkpointId: string) => Promise<void>;
   applyOt: (ops: OtOp[]) => Promise<void>;
+}
+
+const PROJECT_ID_KEY = "cvc_project_id";
+
+function saveProjectId(id: string) {
+  if (typeof window !== "undefined") localStorage.setItem(PROJECT_ID_KEY, id);
 }
 
 let _destroyWs: (() => void) | null = null;
@@ -51,6 +57,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   initProject: async (canon) => {
     try {
       const { project_id } = await api.createProject(canon);
+      saveProjectId(project_id);
       set({ projectId: project_id, canon, error: null });
       get().connect();
     } catch (e: any) {
@@ -59,6 +66,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   setProjectId: (id) => {
+    saveProjectId(id);
     set({ projectId: id });
     get().connect();
   },
@@ -97,7 +105,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     );
   },
 
-  submitPrompt: async (prompt) => {
+  submitPrompt: async (prompt, sampleImageUrls) => {
     const { projectId } = get();
     if (!projectId) return;
     set({ isRunning: true, error: null });
@@ -106,7 +114,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set((prev) => ({
           agentState: { ...prev.agentState, ...chunk } as AgentState,
         }));
-      });
+      }, sampleImageUrls);
     } catch (e: any) {
       set({ error: e.message });
     } finally {

@@ -77,7 +77,7 @@ export default function Timeline() {
               }`}
             />
             <span className="text-[8px] text-zinc-500 group-hover:text-zinc-300">
-              {i + 1}
+              {KIND_LABEL[cp.kind] ?? cp.kind}
             </span>
           </button>
         ))}

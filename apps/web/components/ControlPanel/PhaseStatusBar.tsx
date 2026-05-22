@@ -83,7 +83,10 @@ export default function PhaseStatusBar() {
       </div>
 
       {/* Stage key badge */}
-      <span className="text-[9px] font-mono text-zinc-500 tracking-wide flex-shrink-0">
+      <span
+        data-testid="phase-status-badge"
+        className="text-[9px] font-mono text-zinc-500 tracking-wide flex-shrink-0"
+      >
         {status}
       </span>
     </div>

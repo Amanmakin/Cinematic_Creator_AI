@@ -58,23 +58,80 @@ except (TypeError, AttributeError):
     pass
 
 MATERIAL_COLORS = {
-    "wood":    (0.55, 0.35, 0.18, 1.0),
+    "wood":    (0.78, 0.52, 0.25, 1.0),
     "metal":   (0.65, 0.67, 0.70, 1.0),
     "plastic": (0.30, 0.55, 0.75, 1.0),
-    "fabric":  (0.60, 0.45, 0.55, 1.0),
+    "fabric":  (0.45, 0.30, 0.18, 1.0),
     "glass":   (0.70, 0.85, 0.90, 1.0),
     "stone":   (0.55, 0.52, 0.48, 1.0),
     "default": (0.33, 0.36, 0.48, 1.0),
 }
 _mat_cache = {}
 
-def get_material(hint):
-    if hint not in _mat_cache:
-        rgba = MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
-        mat = bpy.data.materials.new(name=f"mat_{hint}")
+def hex_to_rgba(hex_str):
+    h = hex_str.lstrip("#")
+    if len(h) == 3:
+        h = h[0]*2 + h[1]*2 + h[2]*2
+    r = int(h[0:2], 16) / 255.0
+    g = int(h[2:4], 16) / 255.0
+    b = int(h[4:6], 16) / 255.0
+    return (r, g, b, 1.0)
+
+def get_material(hint, color_hex=None):
+    key = color_hex if color_hex else hint
+    if key not in _mat_cache:
+        rgba = hex_to_rgba(color_hex) if color_hex else MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
+        mat = bpy.data.materials.new(name=f"mat_{key[:16]}")
         mat.diffuse_color = rgba
-        _mat_cache[hint] = mat
-    return _mat_cache[hint]
+        _mat_cache[key] = mat
+    return _mat_cache[key]
+
+def apply_gradient_vertex_colors(obj, top_hex, bottom_hex):
+    mesh = obj.data
+    if not mesh.vertices:
+        return
+    zs = [v.co.z for v in mesh.vertices]
+    min_z, max_z = min(zs), max(zs)
+    z_range = max_z - min_z
+    if z_range < 1e-6:
+        return
+    def parse(h):
+        h = h.lstrip("#")
+        return (int(h[0:2],16)/255.0, int(h[2:4],16)/255.0, int(h[4:6],16)/255.0)
+    top_rgb = parse(top_hex)
+    bot_rgb = parse(bottom_hex)
+    # Blender 4.x+: use color_attributes; fallback to 3.x vertex_colors
+    try:
+        ca = mesh.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="CORNER")
+        for i, loop in enumerate(mesh.loops):
+            vz = mesh.vertices[loop.vertex_index].co.z
+            t = (vz - min_z) / z_range
+            ca.data[i].color = (
+                top_rgb[0]*t + bot_rgb[0]*(1-t),
+                top_rgb[1]*t + bot_rgb[1]*(1-t),
+                top_rgb[2]*t + bot_rgb[2]*(1-t),
+                1.0,
+            )
+        try:
+            mesh.color_attributes.active_color = ca
+        except Exception:
+            pass
+    except AttributeError:
+        vc = mesh.vertex_colors.new(name="Col")
+        for i, loop in enumerate(mesh.loops):
+            vz = mesh.vertices[loop.vertex_index].co.z
+            t = (vz - min_z) / z_range
+            vc.data[i].color = (
+                top_rgb[0]*t + bot_rgb[0]*(1-t),
+                top_rgb[1]*t + bot_rgb[1]*(1-t),
+                top_rgb[2]*t + bot_rgb[2]*(1-t),
+                1.0,
+            )
+    # White base material so vertex colors render as-is
+    mat = bpy.data.materials.new(name=f"mat_grad_{obj.name[:8]}")
+    mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
 
 def build_primitive(p):
     kind = p.get("kind", "box")
@@ -85,16 +142,16 @@ def build_primitive(p):
     rz = math.radians(p.get("rot_z", 0))
     if kind == "cylinder":
         r = max(w, d) / 2
-        bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=r, depth=h, location=(x, y, z))
+        bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=r, depth=h, location=(x, y, z))
         obj = bpy.context.active_object
         # Add horizontal ring loops for denser side topology
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="SELECT")
-        bpy.ops.mesh.subdivide(number_cuts=2)
+        bpy.ops.mesh.subdivide(number_cuts=3)
         bpy.ops.object.mode_set(mode="OBJECT")
     elif kind == "sphere":
         r = max(w, d, h) / 2
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=r, location=(x, y, z))
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=r, location=(x, y, z))
         obj = bpy.context.active_object
     else:  # box
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
@@ -106,9 +163,16 @@ def build_primitive(p):
         bpy.ops.object.mode_set(mode="OBJECT")
     obj.rotation_euler = (rx, ry, rz)
     obj.name = p.get("label", kind)
+    color_hex = p.get("color_hex")
+    grad_bottom = p.get("gradient_bottom_hex")
     mat_hint = p.get("material_hint", "default")
-    obj.data.materials.clear()
-    obj.data.materials.append(get_material(mat_hint))
+    if grad_bottom and color_hex:
+        obj.data.materials.clear()
+        obj.data.materials.append(get_material(mat_hint, color_hex))
+        apply_gradient_vertex_colors(obj, color_hex, grad_bottom)
+    else:
+        obj.data.materials.clear()
+        obj.data.materials.append(get_material(mat_hint, color_hex))
     return obj
 
 primitives = data.get("primitives", [])
@@ -278,12 +342,21 @@ try:
         obj.select_set(True)
     if mesh_objects:
         bpy.context.view_layer.objects.active = mesh_objects[0]
-    bpy.ops.export_scene.gltf(
-        filepath=glb_path,
-        use_selection=True,
-        export_format="GLB",
-        export_apply=True,
-    )
+    try:
+        bpy.ops.export_scene.gltf(
+            filepath=glb_path,
+            use_selection=True,
+            export_format="GLB",
+            export_apply=True,
+            export_colors=True,
+        )
+    except TypeError:
+        bpy.ops.export_scene.gltf(
+            filepath=glb_path,
+            use_selection=True,
+            export_format="GLB",
+            export_apply=True,
+        )
 except Exception as _e:
     print(f"glTF export failed: {_e}")
 '''
@@ -327,23 +400,78 @@ except (TypeError, AttributeError):
     pass
 
 MATERIAL_COLORS = {
-    "wood":    (0.55, 0.35, 0.18, 1.0),
+    "wood":    (0.78, 0.52, 0.25, 1.0),
     "metal":   (0.65, 0.67, 0.70, 1.0),
     "plastic": (0.30, 0.55, 0.75, 1.0),
-    "fabric":  (0.60, 0.45, 0.55, 1.0),
+    "fabric":  (0.45, 0.30, 0.18, 1.0),
     "glass":   (0.70, 0.85, 0.90, 1.0),
     "stone":   (0.55, 0.52, 0.48, 1.0),
     "default": (0.33, 0.36, 0.48, 1.0),
 }
 _mat_cache = {}
 
-def get_material(hint):
-    if hint not in _mat_cache:
-        rgba = MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
-        mat = bpy.data.materials.new(name=f"mat_{hint}")
+def hex_to_rgba(hex_str):
+    h = hex_str.lstrip("#")
+    if len(h) == 3:
+        h = h[0]*2 + h[1]*2 + h[2]*2
+    r = int(h[0:2], 16) / 255.0
+    g = int(h[2:4], 16) / 255.0
+    b = int(h[4:6], 16) / 255.0
+    return (r, g, b, 1.0)
+
+def get_material(hint, color_hex=None):
+    key = color_hex if color_hex else hint
+    if key not in _mat_cache:
+        rgba = hex_to_rgba(color_hex) if color_hex else MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
+        mat = bpy.data.materials.new(name=f"mat_{key[:16]}")
         mat.diffuse_color = rgba
-        _mat_cache[hint] = mat
-    return _mat_cache[hint]
+        _mat_cache[key] = mat
+    return _mat_cache[key]
+
+def apply_gradient_vertex_colors(obj, top_hex, bottom_hex):
+    mesh = obj.data
+    if not mesh.vertices:
+        return
+    zs = [v.co.z for v in mesh.vertices]
+    min_z, max_z = min(zs), max(zs)
+    z_range = max_z - min_z
+    if z_range < 1e-6:
+        return
+    def parse(h):
+        h = h.lstrip("#")
+        return (int(h[0:2],16)/255.0, int(h[2:4],16)/255.0, int(h[4:6],16)/255.0)
+    top_rgb = parse(top_hex)
+    bot_rgb = parse(bottom_hex)
+    try:
+        ca = mesh.color_attributes.new(name="Color", type="FLOAT_COLOR", domain="CORNER")
+        for i, loop in enumerate(mesh.loops):
+            vz = mesh.vertices[loop.vertex_index].co.z
+            t = (vz - min_z) / z_range
+            ca.data[i].color = (
+                top_rgb[0]*t + bot_rgb[0]*(1-t),
+                top_rgb[1]*t + bot_rgb[1]*(1-t),
+                top_rgb[2]*t + bot_rgb[2]*(1-t),
+                1.0,
+            )
+        try:
+            mesh.color_attributes.active_color = ca
+        except Exception:
+            pass
+    except AttributeError:
+        vc = mesh.vertex_colors.new(name="Col")
+        for i, loop in enumerate(mesh.loops):
+            vz = mesh.vertices[loop.vertex_index].co.z
+            t = (vz - min_z) / z_range
+            vc.data[i].color = (
+                top_rgb[0]*t + bot_rgb[0]*(1-t),
+                top_rgb[1]*t + bot_rgb[1]*(1-t),
+                top_rgb[2]*t + bot_rgb[2]*(1-t),
+                1.0,
+            )
+    mat = bpy.data.materials.new(name=f"mat_grad_{obj.name[:8]}")
+    mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
 
 # ── Primitive builder ─────────────────────────────────────────────────────────
 def render_primitive(p):
@@ -356,15 +484,15 @@ def render_primitive(p):
 
     if kind == "cylinder":
         r = max(w, d) / 2
-        bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=r, depth=h, location=(x, y, z))
+        bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=r, depth=h, location=(x, y, z))
         obj = bpy.context.active_object
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="SELECT")
-        bpy.ops.mesh.subdivide(number_cuts=2)
+        bpy.ops.mesh.subdivide(number_cuts=3)
         bpy.ops.object.mode_set(mode="OBJECT")
     elif kind == "sphere":
         r = max(w, d, h) / 2
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=r, location=(x, y, z))
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=r, location=(x, y, z))
         obj = bpy.context.active_object
     else:
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
@@ -376,9 +504,16 @@ def render_primitive(p):
 
     obj.rotation_euler = (rx, ry, rz)
     obj.name = p.get("label", kind)
+    color_hex = p.get("color_hex")
+    grad_bottom = p.get("gradient_bottom_hex")
     mat_hint = p.get("material_hint", "default")
-    obj.data.materials.clear()
-    obj.data.materials.append(get_material(mat_hint))
+    if grad_bottom and color_hex:
+        obj.data.materials.clear()
+        obj.data.materials.append(get_material(mat_hint, color_hex))
+        apply_gradient_vertex_colors(obj, color_hex, grad_bottom)
+    else:
+        obj.data.materials.clear()
+        obj.data.materials.append(get_material(mat_hint, color_hex))
     return obj
 
 # ── Build scene from LLM primitives (or fall back to subject AABBs) ───────────

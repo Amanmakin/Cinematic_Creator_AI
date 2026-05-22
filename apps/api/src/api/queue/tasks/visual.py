@@ -23,11 +23,14 @@ async def generate_visual(
     from api.adapters.hybrid_adapter import HybridAdapter
 
     ledger = BudgetLedger(db_path=settings.db_path)
+    from api.routes.generation_settings import _fetch_config, _DEFAULTS
+    cfg = await _fetch_config(project_id) or _DEFAULTS
     adapter = HybridAdapter(
-        strategy=settings.generation_strategy,
+        strategy=cfg.strategy,
         docker_base_url=settings.docker_diffusers_url,
-        timeout_local=float(settings.generation_timeout_local),
-        use_smaller_model=settings.use_smaller_models_locally,
+        timeout_local=float(cfg.timeout_local_sec),
+        use_smaller_model=cfg.use_smaller_models,
+        openai_api_key=settings.openai_api_key,
     )
 
     await inflight_increment(project_id)

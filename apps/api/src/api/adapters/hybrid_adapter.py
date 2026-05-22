@@ -1,4 +1,4 @@
-"""Hybrid adapter — routes generation to local Docker inference."""
+"""Hybrid adapter — routes generation to local Docker or OpenAI DALL-E."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_STRATEGIES = {"local_only", "local_fallback"}
+_STRATEGIES = {"local_only", "local_fallback", "openai_dalle"}
 
 _INTENT_KEY = "__hybrid_intent"
 _PROJECT_KEY = "__hybrid_project_id"
@@ -30,15 +30,16 @@ class _SimpleCtx:
 
 
 class HybridAdapter:
-    """Delegates to LocalDockerAdapter.
+    """Routes generation to the configured backend.
 
     Strategies:
-    - local_only     fail if local inference unavailable
-    - local_fallback try local, raise ProviderUnavailable on failure
+    - local_only     Local Docker inference; fails hard if Docker is down.
+    - local_fallback Local Docker inference; raises ProviderUnavailable on error.
+    - openai_dalle   OpenAI DALL-E 3 cloud generation. Requires OPENAI_API_KEY.
     """
 
     name = "hybrid"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(
         self,
@@ -46,6 +47,7 @@ class HybridAdapter:
         docker_base_url: str = "http://localhost:8000",
         timeout_local: float = 600.0,
         use_smaller_model: bool = True,
+        openai_api_key: str = "",
         **_: object,
     ) -> None:
         if strategy not in _STRATEGIES:
@@ -56,6 +58,7 @@ class HybridAdapter:
             timeout_sec=timeout_local,
             use_smaller_model=use_smaller_model,
         )
+        self._openai_api_key = openai_api_key
 
     # ------------------------------------------------------------------
     # CreativeAdapter protocol
@@ -84,10 +87,20 @@ class HybridAdapter:
 
         t0 = time.monotonic()
 
-        local_payload = self._local.translate(intent, ctx)
-        result = await self._local.execute(local_payload)
-        provider = "local_diffusers"
-        model_used = local_payload.model
+        if self._strategy == "openai_dalle":
+            from api.adapters.openai_dalle_adapter import OpenAIDALLEAdapter
+            dalle = OpenAIDALLEAdapter(api_key=self._openai_api_key)
+            dalle_payload = dalle.translate(intent, ctx)
+            result = await dalle.execute(dalle_payload)
+            provider = "openai_dalle"
+            model_used = dalle_payload.model
+            cost_usd = 0.04  # DALL-E 3 standard 1024x1024
+        else:
+            local_payload = self._local.translate(intent, ctx)
+            result = await self._local.execute(local_payload)
+            provider = "local_diffusers"
+            model_used = local_payload.model
+            cost_usd = 0.0
 
         elapsed = round(time.monotonic() - t0, 2)
 
@@ -97,7 +110,7 @@ class HybridAdapter:
             provider=provider,
             model_used=model_used,
             inference_time_sec=elapsed,
-            cost_usd=0.0,
+            cost_usd=cost_usd,
             fallback_triggered=False,
         )
 

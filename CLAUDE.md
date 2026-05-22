@@ -42,3 +42,23 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 3. Use `detect_changes` + `get_review_context` for all code reviews.
 4. Use `get_impact_radius` before any refactor or deletion.
 5. Use `query_graph` pattern="tests_for" to check test coverage before shipping.
+
+---
+
+## Architecture Snapshot: `docs/ARCHITECTURE_SNAPSHOT.md`
+
+**IMPORTANT: Keep `docs/ARCHITECTURE_SNAPSHOT.md` up to date.**
+
+Update it whenever you:
+- Add, rename, or remove a LangGraph node
+- Change `AgentState` fields or add a new `ExecutionStage`
+- Modify routing thresholds or conditional-edge logic (`routing.py`, `graph.py`)
+- Add or change a Pydantic schema in `schemas/`
+- Add or change a FastAPI route module
+- Add or change an adapter (`adapters/`)
+- Add or change a memory tier (`memory/`)
+- Add or change a queue task (`queue/tasks/`)
+- Add or change a Docker service (`docker-compose.yml`)
+- Complete or start a new Plan phase
+
+When updating, also set the `Last synced:` date at the top of the file to today's date.

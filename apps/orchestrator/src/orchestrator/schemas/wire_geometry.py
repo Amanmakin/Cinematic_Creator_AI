@@ -23,6 +23,21 @@ class WirePrimitive(BaseModel):
         default="default",
         description="Dominant material of this part — used to tint the wireframe colour.",
     )
+    color_hex: str | None = Field(
+        default=None,
+        description=(
+            "Optional CSS hex color override e.g. '#C8A06E'. Overrides the material_hint tint. "
+            "Use this for precise product colors (wood grain tones, brand colors, etc.)."
+        ),
+    )
+    gradient_bottom_hex: str | None = Field(
+        default=None,
+        description=(
+            "If set, a vertical gradient is applied: color_hex at the top, gradient_bottom_hex "
+            "at the bottom. Ideal for gradient-painted bottles, ombre finishes, etc. "
+            "Requires color_hex to also be set."
+        ),
+    )
 
 
 class WireframeGeometry(BaseModel):

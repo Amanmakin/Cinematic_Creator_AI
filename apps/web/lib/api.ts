@@ -27,15 +27,28 @@ export async function getProject(projectId: string) {
  * Submit a prompt and consume the SSE stream, calling `onChunk` for each state event.
  * Returns when the stream closes.
  */
+export async function uploadSampleImages(projectId: string, files: File[]): Promise<string[]> {
+  const form = new FormData();
+  for (const file of files) form.append("files", file);
+  const res = await fetch(`${BASE}/projects/${projectId}/sample-images`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw new Error(`uploadSampleImages failed: ${res.status}`);
+  const data = await res.json();
+  return data.urls as string[];
+}
+
 export async function submitRun(
   projectId: string,
   userPrompt: string,
   onChunk: (state: Partial<AgentState>) => void,
+  sampleImageUrls?: string[],
 ): Promise<void> {
   const res = await fetch(`${BASE}/projects/${projectId}/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ user_prompt: userPrompt }),
+    body: JSON.stringify({ user_prompt: userPrompt, sample_image_urls: sampleImageUrls ?? [] }),
   });
   if (!res.ok) throw new Error(`submitRun failed: ${res.status}`);
   await consumeSse(res, onChunk);

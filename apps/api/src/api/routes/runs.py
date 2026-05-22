@@ -16,6 +16,7 @@ router = APIRouter()
 
 class RunRequest(BaseModel):
     user_prompt: str
+    sample_image_urls: list[str] = []
 
 
 @router.post("/{project_id}/runs")
@@ -36,6 +37,7 @@ async def start_run(project_id: str, body: RunRequest):
         user_prompt=body.user_prompt,
         project_canon=canon,
         semantic_locks=semantic_locks,
+        sample_image_urls=body.sample_image_urls,
     )
 
     config = {"configurable": {"thread_id": project_id}}

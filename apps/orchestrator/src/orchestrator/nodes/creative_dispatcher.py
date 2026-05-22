@@ -117,6 +117,9 @@ def creative_dispatcher_node(state: AgentState) -> dict:
             # Pass wireframe sheet for img2img conditioning when available
             if sheet_disk_path:
                 params["wireframe_image_path"] = sheet_disk_path
+            # Pass user-supplied reference images for style conditioning
+            if state.sample_image_urls:
+                params["reference_image_urls"] = list(state.sample_image_urls)
 
             intents.append(
                 CreativeIntent(
@@ -152,6 +155,8 @@ def creative_dispatcher_node(state: AgentState) -> dict:
             }
             if sheet_disk_path:
                 bg_params["wireframe_image_path"] = sheet_disk_path
+            if state.sample_image_urls:
+                bg_params["reference_image_urls"] = list(state.sample_image_urls)
 
             intents.append(
                 CreativeIntent(

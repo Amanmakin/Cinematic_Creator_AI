@@ -71,15 +71,17 @@ export function LLMSettingsPanel() {
   async function applyPreset(key: string) {
     const preset = PRESETS.find((p) => p.key === key);
     if (!preset) return;
+    const prevPreset = selectedPreset;
     setSelectedPreset(key);
     if (key !== "custom") {
-      await save(preset.config);
+      const ok = await save(preset.config);
+      if (!ok) setSelectedPreset(prevPreset); // revert on failure
     } else {
       setConfig((prev) => prev ?? { provider: "custom", model: "", base_url: "" });
     }
   }
 
-  async function save(cfg: LLMConfig) {
+  async function save(cfg: LLMConfig): Promise<boolean> {
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -93,15 +95,21 @@ export function LLMSettingsPanel() {
       setConfig(cfg);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
   if (!config) {
-    return <p className="text-sm text-zinc-400">{error ?? "Loading…"}</p>;
+    return (
+      <p className="text-sm text-zinc-400">
+        {error ? <span className="text-red-400">Error: {error}</span> : "Loading…"}
+      </p>
+    );
   }
 
   const isCustom = selectedPreset === "custom";
@@ -158,7 +166,11 @@ export function LLMSettingsPanel() {
         </div>
       )}
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2">
+          <p className="text-xs text-red-400">{error}</p>
+        </div>
+      )}
     </div>
   );
 }

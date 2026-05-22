@@ -21,11 +21,12 @@ interface ViewportProps {
 }
 
 function SceneLights() {
-  // Default lights shown before a scene_graph arrives
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 8, 5]} intensity={1.2} />
+      <ambientLight intensity={0.55} />
+      <directionalLight position={[5, 8, 5]} intensity={1.4} castShadow />
+      <directionalLight position={[-4, 4, -3]} intensity={0.4} />
+      <directionalLight position={[0, -3, 6]} intensity={0.25} />
     </>
   );
 }

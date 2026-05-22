@@ -30,6 +30,8 @@ from api.routes.generation_settings import router as generation_settings_router
 from api.routes.llm_settings import router as llm_settings_router
 from api.routes.llm_settings import load_and_apply_saved as llm_load_and_apply
 from api.routes.style import router as style_router
+from api.routes.sample_images import router as sample_images_router
+from api.routes.sample_images import _UPLOADS_DIR as _sample_images_dir
 from api.settings import settings
 from api.ws.broadcaster import router as ws_router
 
@@ -70,6 +72,7 @@ app.include_router(ot_router, prefix="/projects", tags=["ot"])
 app.include_router(checkpoints_router, prefix="/projects", tags=["checkpoints"])
 app.include_router(style_router, prefix="/projects", tags=["style"])
 app.include_router(generation_settings_router, prefix="/projects", tags=["generation"])
+app.include_router(sample_images_router, prefix="/projects", tags=["sample-images"])
 app.include_router(llm_settings_router, tags=["llm"])
 app.include_router(ws_router)
 
@@ -77,3 +80,7 @@ app.include_router(ws_router)
 _previs_dir = Path(os.environ.get("PREVIS_OUTPUT_DIR", "previs_renders"))
 _previs_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/previs", StaticFiles(directory=str(_previs_dir)), name="previs")
+
+# Serve uploaded sample/reference images at /sample-images/<project_id>/<filename>
+_sample_images_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/sample-images", StaticFiles(directory=str(_sample_images_dir)), name="sample-images")

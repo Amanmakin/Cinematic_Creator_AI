@@ -164,6 +164,7 @@ export interface AgentState {
   previsualization?: Previsualization;
   model_renders?: string[];
   gltf_assembled_path?: string | null;
+  sample_image_urls?: string[];
 }
 
 export interface StateCheckpoint {

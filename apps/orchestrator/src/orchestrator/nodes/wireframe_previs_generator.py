@@ -6,8 +6,11 @@ No LLM calls permitted in this node.
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import re
+from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -75,6 +78,22 @@ def _apply_material_hints(geo: WireframeGeometry, subject: str) -> WireframeGeom
     return geo
 
 
+def _load_image_as_b64(url_path: str) -> str | None:
+    """Read a /sample-images/… URL from disk and return base64-encoded bytes."""
+    m = re.match(r"^/sample-images/(.+)$", url_path)
+    if not m:
+        return None
+    rel = m.group(1)
+    uploads_dir = os.environ.get("SAMPLE_IMAGES_DIR", "sample_images")
+    disk_path = Path(uploads_dir) / rel
+    if not disk_path.exists():
+        return None
+    try:
+        return base64.b64encode(disk_path.read_bytes()).decode("ascii")
+    except Exception:
+        return None
+
+
 def _generate_wire_geometry(state: AgentState) -> WireframeGeometry | None:
     """Ask the LLM to decompose the subject into renderable primitives."""
     try:
@@ -85,11 +104,26 @@ def _generate_wire_geometry(state: AgentState) -> WireframeGeometry | None:
             if state.previsualization_feedback
             else ""
         )
-        user = HumanMessage(content=(
+        text_body = (
             f"Subject: {subject}\n"
             f"Additional context: {state.intent.model_dump_json() if state.intent else ''}"
             f"{feedback_section}"
-        ))
+        )
+
+        # Build vision message when reference images are available so the LLM
+        # can derive accurate dimensions and silhouette from the actual product.
+        if state.sample_image_urls:
+            content: list = [{"type": "text", "text": text_body}]
+            for url in list(state.sample_image_urls)[:3]:
+                b64 = _load_image_as_b64(url)
+                if b64 is None:
+                    continue
+                ext = url.rsplit(".", 1)[-1].lower()
+                mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}" if ext in ("png", "webp", "gif") else "image/jpeg"
+                content.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
+            user = HumanMessage(content=content)
+        else:
+            user = HumanMessage(content=text_body)
         model = llm_module.make_llm()
         structured = model.with_structured_output(WireframeGeometry, include_raw=True, method="function_calling")
         result = structured.invoke([system, user])
