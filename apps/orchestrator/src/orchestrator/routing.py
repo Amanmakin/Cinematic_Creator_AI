@@ -26,9 +26,9 @@ def route_after_validation(state: AgentState) -> str:
     return "retry"
 
 
-def route_after_creative_dispatch(state: AgentState) -> str:
-    """Plan10: route mesh intents to mesh_generator, others to visual_generator."""
-    for intent in state.creative_intents:
-        if intent.output_kind == "mesh" or intent.kind == "generate_mesh":
-            return "mesh"
-    return "image"
+def route_after_mesh_dispatch(state: AgentState) -> str:
+    """Plan10/B: object & landscape go to mesh_generator pre-wireframe; abstract skips it."""
+    subj_class = state.subject_class or "object"
+    if subj_class in ("object", "landscape"):
+        return "mesh_generator"
+    return "wireframe_previs_generator"

@@ -3,7 +3,7 @@
 > Auto-maintained reference. Update this file whenever nodes, state fields, routing conditions,
 > schemas, routes, or infrastructure change. See `CLAUDE.md` for the update rule.
 >
-> Last synced: 2026-05-22 (Plan10 — text→3D pipeline)
+> Last synced: 2026-05-22 (Plan10B — mesh-first wireframe previs)
 
 ---
 
@@ -147,8 +147,9 @@ failed
 | `generation_mode_parser` | `generation_mode_parser.py` | Pure Python | Sets `generation_mode` from intent/prompt |
 | `semantic_locker` | `semantic_locker.py` | Pure Python | Diffs current vs prior checkpoint, emits `SemanticLock`s |
 | `scene_graph_generator` | `scene_graph_generator.py` | LLM (structured output) | Produces typed `BlenderDsl`; lock violations → capped retry |
-| `wireframe_previs_generator` | `wireframe_previs_generator.py` | Deterministic | Renders camera-frustum wireframes from DSL via `camera_planner` + `previs_renderer` |
-| `creative_dispatcher` | `creative_dispatcher.py` | Pure Python | Translates DSL into `CreativeIntent` list; emits `CreativeIntentDispatched` events |
+| `wireframe_previs_generator` | `wireframe_previs_generator.py` | Deterministic | Renders camera-frustum wireframes from DSL via `camera_planner` + `previs_renderer`. For `subject_class in {object, landscape}` it imports `state.mesh_assets` (real GLBs from `mesh_generator`); for `abstract` it falls back to LLM-generated wire primitives |
+| `mesh_dispatcher` | `mesh_dispatcher.py` | Pure Python | Plan10B. Emits `generate_mesh` `CreativeIntent`s for `object`/`landscape` subjects **before** wireframe previs; no-op for `abstract` |
+| `creative_dispatcher` | `creative_dispatcher.py` | Pure Python | Translates DSL into image-only `CreativeIntent`s (runs after wireframe approval). Mesh intents come from `mesh_dispatcher` upstream; this node now only emits subject-image intents for `abstract` plus background intents |
 | `physical_validation` | `physical_validation.py` | Pure Python (zero LLM) | Strict geometry checks: focal length, camera-AABB collision, light sanity, duration cap |
 | `dsl_compiler` | `dsl_compiler.py` | Pure Python | Compiles validated DSL to Blender-executable form |
 | `speculative_batcher` | `speculative_batcher.py` | LLM | Generates 2–3 `BlenderDsl` variants on medium ambiguity |
@@ -170,12 +171,18 @@ failed
 | `0.4 < ambiguity_score <= 0.8` | `speculative_batcher` |
 | `ambiguity_score <= 0.4` | `subject_classifier` → `generation_mode_parser` (proceed) |
 
-### After `creative_dispatcher` (Plan10)
+### After `mesh_dispatcher` (Plan10B)
 
 | Condition | Destination |
 |---|---|
-| Any intent has `output_kind == "mesh"` | `mesh_generator` |
-| Otherwise | `visual_generator` |
+| `subject_class in {"object", "landscape"}` AND `mesh_generator_node` wired | `mesh_generator` → `wireframe_previs_generator` |
+| `subject_class == "abstract"` (or no mesh adapter) | `wireframe_previs_generator` (direct) |
+
+### After `creative_dispatcher` (Plan10B)
+
+Unconditional edge to `visual_generator` (if wired) or `physical_validation`. The
+previous `output_kind == "mesh"` branch is gone — mesh subjects are produced
+upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 
 ### After `wireframe_previs_generator`
 

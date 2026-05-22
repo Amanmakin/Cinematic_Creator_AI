@@ -13,8 +13,25 @@ from orchestrator.cinematics.camera_planner import PlannedShot
 from orchestrator.rendering.blender_runtime import BlenderRuntime
 from orchestrator.rendering.sheet_composer import compose_wireframe_sheet
 from orchestrator.schemas.dsl import BlenderDsl
+from orchestrator.schemas.mesh_asset import MeshAsset
 from orchestrator.schemas.previsualization import CameraTransform, LightingInfo, WireframeFrame
 from orchestrator.schemas.wire_geometry import WireframeGeometry
+
+
+def _mesh_assets_to_dicts(assets: list[MeshAsset] | None) -> list[dict] | None:
+    if not assets:
+        return None
+    out: list[dict] = []
+    for m in assets:
+        out.append({
+            "asset_id":   m.asset_id,
+            "glb_path":   m.glb_path,
+            "position":   list(m.position),
+            "rotation":   list(m.rotation),
+            "scale":      list(m.scale),
+            "target_path": m.target_path,
+        })
+    return out
 
 
 def _primitives_from_geometry(geo: WireframeGeometry) -> list[dict]:
@@ -76,6 +93,7 @@ class PrevisRenderer:
         shot: PlannedShot,
         subjects: list[dict] | None = None,
         primitives: list[dict] | None = None,
+        mesh_assets: list[dict] | None = None,
     ) -> WireframeFrame:
         image_path, thumb_path = self._runtime.render_frame(
             frame_index=shot.frame_index,
@@ -88,6 +106,7 @@ class PrevisRenderer:
             resolution=self.resolution,
             subjects=subjects,
             primitives=primitives,
+            mesh_assets=mesh_assets,
         )
         # Store URL paths, not filesystem paths
         frame_filename = f"frame_{shot.frame_index:03d}.png"
@@ -116,11 +135,13 @@ class PrevisRenderer:
         shots: list[PlannedShot],
         scene_graph: BlenderDsl | None = None,
         wire_geometry: WireframeGeometry | None = None,
+        mesh_assets: list[MeshAsset] | None = None,
     ) -> list[WireframeFrame]:
         subjects = _subjects_from_scene(scene_graph) if scene_graph else None
         primitives = _primitives_from_geometry(wire_geometry) if wire_geometry else None
+        meshes = _mesh_assets_to_dicts(mesh_assets)
         return [
-            self.render_frame(shot, subjects=subjects, primitives=primitives)
+            self.render_frame(shot, subjects=subjects, primitives=primitives, mesh_assets=meshes)
             for shot in shots
         ]
 
@@ -133,6 +154,7 @@ class PrevisRenderer:
         scene_graph: BlenderDsl | None = None,
         wire_geometry: WireframeGeometry | None = None,
         subject_label: str = "Object",
+        mesh_assets: list[MeshAsset] | None = None,
     ) -> tuple[str, str | None, str, str | None]:
         """Render a multi-view wireframe reference sheet.
 
@@ -141,11 +163,13 @@ class PrevisRenderer:
         """
         primitives = _primitives_from_geometry(wire_geometry) if wire_geometry else None
         subjects   = _subjects_from_scene(scene_graph) if scene_graph else None
+        meshes     = _mesh_assets_to_dicts(mesh_assets)
 
         view_paths = self._runtime.render_sheet(
             primitives=primitives,
             subjects=subjects,
             resolution=(640, 480),
+            mesh_assets=meshes,
         )
         stats           = view_paths.pop("stats", {})
         glb_fs_path     = view_paths.pop("wireframe_glb", None)

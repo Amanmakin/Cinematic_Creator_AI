@@ -13,6 +13,7 @@ from orchestrator.nodes import (
     dsl_compiler_node,
     generation_mode_parser_node,
     intent_validator_node,
+    mesh_dispatcher_node,
     physical_validation_node,
     scene_graph_generator_node,
     semantic_locker_node,
@@ -21,8 +22,8 @@ from orchestrator.nodes import (
     wireframe_previs_generator_node,
 )
 from orchestrator.routing import (
-    route_after_creative_dispatch,
     route_after_intent,
+    route_after_mesh_dispatch,
     route_after_validation,
 )
 from orchestrator.state import AgentState, GenerationMode
@@ -65,6 +66,7 @@ def build_graph(
     g.add_node("generation_mode_parser", generation_mode_parser_node)
     g.add_node("semantic_locker", semantic_locker_node)
     g.add_node("scene_graph_generator", scene_graph_generator_node)
+    g.add_node("mesh_dispatcher", mesh_dispatcher_node)
     g.add_node("wireframe_previs_generator", wireframe_previs_generator_node)
     g.add_node("creative_dispatcher", creative_dispatcher_node)
 
@@ -98,7 +100,26 @@ def build_graph(
     g.add_edge("subject_classifier", "generation_mode_parser")
     g.add_edge("generation_mode_parser", "semantic_locker")
     g.add_edge("semantic_locker", "scene_graph_generator")
-    g.add_edge("scene_graph_generator", "wireframe_previs_generator")
+    g.add_edge("scene_graph_generator", "mesh_dispatcher")
+
+    have_visual = visual_generator_node is not None
+    have_mesh = mesh_generator_node is not None
+
+    if have_mesh:
+        # Object/landscape: mesh_dispatcher -> mesh_generator -> wireframe_previs
+        # Abstract: mesh_dispatcher -> wireframe_previs (skip mesh_generator)
+        g.add_conditional_edges(
+            "mesh_dispatcher",
+            route_after_mesh_dispatch,
+            {
+                "mesh_generator": "mesh_generator",
+                "wireframe_previs_generator": "wireframe_previs_generator",
+            },
+        )
+        g.add_edge("mesh_generator", "wireframe_previs_generator")
+    else:
+        # No mesh adapter wired (tests/minimal build) — go straight to wireframe.
+        g.add_edge("mesh_dispatcher", "wireframe_previs_generator")
 
     g.add_conditional_edges(
         "wireframe_previs_generator",
@@ -111,30 +132,9 @@ def build_graph(
         },
     )
 
-    have_visual = visual_generator_node is not None
-    have_mesh = mesh_generator_node is not None
-
-    if have_visual and have_mesh:
-        g.add_conditional_edges(
-            "creative_dispatcher",
-            route_after_creative_dispatch,
-            {
-                "mesh": "mesh_generator",
-                "image": "visual_generator",
-            },
-        )
-        g.add_edge("mesh_generator", "physical_validation")
-        g.add_conditional_edges(
-            "visual_generator",
-            route_after_model,
-            {
-                END: END,
-                "physical_validation": "physical_validation",
-                "visual_generator": "visual_generator",
-                "wireframe_previs_generator": "wireframe_previs_generator",
-            },
-        )
-    elif have_visual:
+    # After wireframe approval, creative_dispatcher emits image intents only
+    # (mesh subjects, if any, already exist). visual_generator handles them.
+    if have_visual:
         g.add_edge("creative_dispatcher", "visual_generator")
         g.add_conditional_edges(
             "visual_generator",
@@ -146,9 +146,6 @@ def build_graph(
                 "wireframe_previs_generator": "wireframe_previs_generator",
             },
         )
-    elif have_mesh:
-        g.add_edge("creative_dispatcher", "mesh_generator")
-        g.add_edge("mesh_generator", "physical_validation")
     else:
         g.add_edge("creative_dispatcher", "physical_validation")
 
