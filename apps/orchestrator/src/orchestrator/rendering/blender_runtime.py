@@ -142,6 +142,34 @@ def apply_gradient_vertex_colors(obj, top_hex, bottom_hex):
     obj.data.materials.clear()
     obj.data.materials.append(mat)
 
+def _displace_mountain(obj, peak_h, base_r, roughness, freq):
+    """Push a cone's side vertices radially + slightly vertically using fractal noise."""
+    from mathutils import noise as _mn
+    mesh = obj.data
+    base_z = min(v.co.z for v in mesh.vertices)
+    for v in mesh.vertices:
+        if v.co.z - base_z < 1e-4:
+            continue  # leave base ring planted on the ground
+        nv = mathutils.Vector((v.co.x * freq, v.co.y * freq, v.co.z * freq))
+        n = _mn.fractal(nv, 0.5, 2.0, 4)
+        flat = mathutils.Vector((v.co.x, v.co.y, 0.0))
+        if flat.length > 1e-6:
+            radial = flat.normalized() * (n * base_r * roughness)
+            v.co.x += radial.x
+            v.co.y += radial.y
+        v.co.z += n * peak_h * 0.08
+    mesh.update()
+
+def _displace_terrain(obj, peak_h, roughness, freq):
+    """Multi-octave fractal displacement on Z for a subdivided plane."""
+    from mathutils import noise as _mn
+    mesh = obj.data
+    for v in mesh.vertices:
+        nv = mathutils.Vector((v.co.x * freq, v.co.y * freq, 0.0))
+        n = _mn.fractal(nv, 0.55, 2.1, 5)
+        v.co.z += n * peak_h * roughness
+    mesh.update()
+
 def build_primitive(p):
     kind = p.get("kind", "box")
     x, y, z = p["x"], p["y"], p["z"]
@@ -162,6 +190,46 @@ def build_primitive(p):
         r = max(w, d, h) / 2
         bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=r, location=(x, y, z))
         obj = bpy.context.active_object
+    elif kind == "cone":
+        r = max(w, d) / 2
+        bpy.ops.mesh.primitive_cone_add(vertices=32, radius1=r, radius2=0.0, depth=h, location=(x, y, z))
+        obj = bpy.context.active_object
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.subdivide(number_cuts=2)
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif kind == "mountain":
+        r = max(w, d) / 2
+        bpy.ops.mesh.primitive_cone_add(vertices=48, radius1=r, radius2=0.0, depth=h, location=(x, y, z))
+        obj = bpy.context.active_object
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.subdivide(number_cuts=6)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        _displace_mountain(
+            obj,
+            peak_h=h,
+            base_r=r,
+            roughness=p.get("roughness") if p.get("roughness") is not None else 0.35,
+            freq=p.get("noise_frequency") if p.get("noise_frequency") is not None else 3.0,
+        )
+    elif kind == "terrain":
+        bpy.ops.mesh.primitive_plane_add(size=1, location=(x, y, z))
+        obj = bpy.context.active_object
+        obj.scale = (w, d, 1.0)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        subs = p.get("subdivisions") if p.get("subdivisions") is not None else 48
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        # subdivide takes number_cuts per existing edge; cap to a safe value
+        bpy.ops.mesh.subdivide(number_cuts=max(1, min(subs, 64)))
+        bpy.ops.object.mode_set(mode="OBJECT")
+        _displace_terrain(
+            obj,
+            peak_h=h,
+            roughness=p.get("roughness") if p.get("roughness") is not None else 0.6,
+            freq=p.get("noise_frequency") if p.get("noise_frequency") is not None else 1.5,
+        )
     else:  # box
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
         obj = bpy.context.active_object
@@ -184,12 +252,61 @@ def build_primitive(p):
         obj.data.materials.append(get_material(mat_hint, color_hex))
     return obj
 
+def import_mesh_asset(m):
+    """Import a glb mesh asset and place it. Returns the imported root object (or None)."""
+    glb_path = m.get("glb_path")
+    if not glb_path or not os.path.exists(glb_path):
+        print(f"mesh_asset skipped: missing glb_path {glb_path!r}")
+        return None
+    pre = set(bpy.data.objects)
+    try:
+        bpy.ops.import_scene.gltf(filepath=glb_path)
+    except Exception as _e:
+        print(f"gltf import failed for {glb_path}: {_e}")
+        return None
+    imported = [o for o in bpy.data.objects if o not in pre]
+    if not imported:
+        return None
+    # Pick the topmost mesh-bearing parent (or first imported obj)
+    root = next((o for o in imported if o.parent is None), imported[0])
+    pos = m.get("position", [0.0, 0.0, 0.0])
+    rot = m.get("rotation", [0.0, 0.0, 0.0])
+    scl = m.get("scale", [1.0, 1.0, 1.0])
+    root.location = (pos[0], pos[1], pos[2])
+    root.rotation_euler = (math.radians(rot[0]), math.radians(rot[1]), math.radians(rot[2]))
+    root.scale = (scl[0], scl[1], scl[2])
+    return root
+
+def mesh_asset_corners(m):
+    """Approximate world-space AABB corners from MeshAsset.bounds_m + transform."""
+    b = m.get("bounds_m") or {}
+    pos = m.get("position", [0.0, 0.0, 0.0])
+    scl = m.get("scale", [1.0, 1.0, 1.0])
+    try:
+        xs = [b["min_x"]*scl[0]+pos[0], b["max_x"]*scl[0]+pos[0]]
+        ys = [b["min_y"]*scl[1]+pos[1], b["max_y"]*scl[1]+pos[1]]
+        zs = [b["min_z"]*scl[2]+pos[2], b["max_z"]*scl[2]+pos[2]]
+        return [(x, y, z) for x in xs for y in ys for z in zs]
+    except KeyError:
+        return []
+
 primitives = data.get("primitives", [])
 subjs      = data.get("subjects", [])
+mesh_assets = data.get("mesh_assets", [])
 all_corners = []
 mesh_objects = []
 
-if primitives:
+# Mesh assets take precedence when present (Plan10 text→3D pipeline).
+if mesh_assets:
+    for ma in mesh_assets:
+        obj = import_mesh_asset(ma)
+        if obj is not None:
+            mesh_objects.append(obj)
+        all_corners += mesh_asset_corners(ma)
+    # Fallback bounds if every import failed.
+    if not all_corners:
+        all_corners = [(-1.0, -1.0, 0.0), (1.0, 1.0, 1.0)]
+elif primitives:
     for p in primitives:
         hw, hd, hh = p["width"]/2, p["depth"]/2, p["height"]/2
         all_corners += [(p["x"]-hw, p["y"]-hd, p["z"]-hh), (p["x"]+hw, p["y"]+hd, p["z"]+hh)]
@@ -371,7 +488,7 @@ except Exception as _e:
 '''
 
 _RENDER_SCRIPT = '''
-import bpy, json, math, sys, mathutils
+import bpy, json, math, os, sys, mathutils
 
 data = json.loads(sys.argv[sys.argv.index("--") + 1])
 
@@ -492,6 +609,32 @@ def apply_gradient_vertex_colors(obj, top_hex, bottom_hex):
     obj.data.materials.append(mat)
 
 # ── Primitive builder ─────────────────────────────────────────────────────────
+def _displace_mountain(obj, peak_h, base_r, roughness, freq):
+    from mathutils import noise as _mn
+    mesh = obj.data
+    base_z = min(v.co.z for v in mesh.vertices)
+    for v in mesh.vertices:
+        if v.co.z - base_z < 1e-4:
+            continue
+        nv = mathutils.Vector((v.co.x * freq, v.co.y * freq, v.co.z * freq))
+        n = _mn.fractal(nv, 0.5, 2.0, 4)
+        flat = mathutils.Vector((v.co.x, v.co.y, 0.0))
+        if flat.length > 1e-6:
+            radial = flat.normalized() * (n * base_r * roughness)
+            v.co.x += radial.x
+            v.co.y += radial.y
+        v.co.z += n * peak_h * 0.08
+    mesh.update()
+
+def _displace_terrain(obj, peak_h, roughness, freq):
+    from mathutils import noise as _mn
+    mesh = obj.data
+    for v in mesh.vertices:
+        nv = mathutils.Vector((v.co.x * freq, v.co.y * freq, 0.0))
+        n = _mn.fractal(nv, 0.55, 2.1, 5)
+        v.co.z += n * peak_h * roughness
+    mesh.update()
+
 def render_primitive(p):
     kind = p.get("kind", "box")
     x, y, z = p["x"], p["y"], p["z"]
@@ -512,6 +655,45 @@ def render_primitive(p):
         r = max(w, d, h) / 2
         bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=r, location=(x, y, z))
         obj = bpy.context.active_object
+    elif kind == "cone":
+        r = max(w, d) / 2
+        bpy.ops.mesh.primitive_cone_add(vertices=32, radius1=r, radius2=0.0, depth=h, location=(x, y, z))
+        obj = bpy.context.active_object
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.subdivide(number_cuts=2)
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif kind == "mountain":
+        r = max(w, d) / 2
+        bpy.ops.mesh.primitive_cone_add(vertices=48, radius1=r, radius2=0.0, depth=h, location=(x, y, z))
+        obj = bpy.context.active_object
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.subdivide(number_cuts=6)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        _displace_mountain(
+            obj,
+            peak_h=h,
+            base_r=r,
+            roughness=p.get("roughness") if p.get("roughness") is not None else 0.35,
+            freq=p.get("noise_frequency") if p.get("noise_frequency") is not None else 3.0,
+        )
+    elif kind == "terrain":
+        bpy.ops.mesh.primitive_plane_add(size=1, location=(x, y, z))
+        obj = bpy.context.active_object
+        obj.scale = (w, d, 1.0)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        subs = p.get("subdivisions") if p.get("subdivisions") is not None else 48
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.subdivide(number_cuts=max(1, min(subs, 64)))
+        bpy.ops.object.mode_set(mode="OBJECT")
+        _displace_terrain(
+            obj,
+            peak_h=h,
+            roughness=p.get("roughness") if p.get("roughness") is not None else 0.6,
+            freq=p.get("noise_frequency") if p.get("noise_frequency") is not None else 1.5,
+        )
     else:
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
         obj = bpy.context.active_object
@@ -534,12 +716,54 @@ def render_primitive(p):
         obj.data.materials.append(get_material(mat_hint, color_hex))
     return obj
 
+def import_mesh_asset(m):
+    glb_path = m.get("glb_path")
+    if not glb_path or not os.path.exists(glb_path):
+        print(f"mesh_asset skipped: missing glb_path {glb_path!r}")
+        return None
+    pre = set(bpy.data.objects)
+    try:
+        bpy.ops.import_scene.gltf(filepath=glb_path)
+    except Exception as _e:
+        print(f"gltf import failed for {glb_path}: {_e}")
+        return None
+    imported = [o for o in bpy.data.objects if o not in pre]
+    if not imported:
+        return None
+    root = next((o for o in imported if o.parent is None), imported[0])
+    pos = m.get("position", [0.0, 0.0, 0.0])
+    rot = m.get("rotation", [0.0, 0.0, 0.0])
+    scl = m.get("scale", [1.0, 1.0, 1.0])
+    root.location = (pos[0], pos[1], pos[2])
+    root.rotation_euler = (math.radians(rot[0]), math.radians(rot[1]), math.radians(rot[2]))
+    root.scale = (scl[0], scl[1], scl[2])
+    return root
+
+def mesh_asset_corners(m):
+    b = m.get("bounds_m") or {}
+    pos = m.get("position", [0.0, 0.0, 0.0])
+    scl = m.get("scale", [1.0, 1.0, 1.0])
+    try:
+        xs = [b["min_x"]*scl[0]+pos[0], b["max_x"]*scl[0]+pos[0]]
+        ys = [b["min_y"]*scl[1]+pos[1], b["max_y"]*scl[1]+pos[1]]
+        zs = [b["min_z"]*scl[2]+pos[2], b["max_z"]*scl[2]+pos[2]]
+        return [(x, y, z) for x in xs for y in ys for z in zs]
+    except KeyError:
+        return []
+
 # ── Build scene from LLM primitives (or fall back to subject AABBs) ───────────
 primitives = data.get("primitives", [])
 subjs      = data.get("subjects", [])
+mesh_assets = data.get("mesh_assets", [])
 all_corners = []
 
-if primitives:
+if mesh_assets:
+    for ma in mesh_assets:
+        import_mesh_asset(ma)
+        all_corners += mesh_asset_corners(ma)
+    if not all_corners:
+        all_corners = [(-1.0, -1.0, 0.0), (1.0, 1.0, 1.0)]
+elif primitives:
     for p in primitives:
         hw, hd, hh = p["width"]/2, p["depth"]/2, p["height"]/2
         all_corners += [
@@ -668,6 +892,7 @@ class BlenderRuntime:
         resolution: tuple[int, int] = (1280, 720),
         subjects: list[dict] | None = None,
         primitives: list[dict] | None = None,
+        mesh_assets: list[dict] | None = None,
     ) -> tuple[str, str]:
         """Render one wireframe previs frame. Returns (image_path, thumbnail_path)."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -690,6 +915,7 @@ class BlenderRuntime:
             },
             "primitives": primitives or [],
             "subjects": subjects or [],
+            "mesh_assets": mesh_assets or [],
         }
 
         script_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w")
@@ -728,6 +954,7 @@ class BlenderRuntime:
         primitives: list[dict] | None = None,
         subjects: list[dict] | None = None,
         resolution: tuple[int, int] = (640, 480),
+        mesh_assets: list[dict] | None = None,
     ) -> dict:
         """Render 9 views (4 ortho + perspective + 4 details) for the wireframe sheet.
 
@@ -741,6 +968,7 @@ class BlenderRuntime:
             "resolution": list(resolution),
             "primitives": primitives or [],
             "subjects": subjects or [],
+            "mesh_assets": mesh_assets or [],
         }
 
         script_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w")

@@ -76,11 +76,17 @@ def creative_dispatcher_node(state: AgentState) -> dict:
 
     scene = state.scene_graph.scene
     locked_paths = {lock.path for lock in state.semantic_locks}
+    # Plan10: object/landscape prompts route through the mesh pipeline;
+    # abstract stays on the existing image + wire-primitive path.
+    subj_class = state.subject_class or "object"
+    use_mesh = subj_class in ("object", "landscape")
 
     with node_step(
         "creative_dispatcher",
         subjects=len(scene.subjects),
         locked_paths=len(locked_paths),
+        subject_class=subj_class,
+        target_pipeline="mesh" if use_mesh else "image",
     ) as out:
         intents: list[CreativeIntent] = []
         events: list[CreativeEvent] = []
@@ -97,6 +103,33 @@ def creative_dispatcher_node(state: AgentState) -> dict:
                         target_path=target,
                         asset_id=subject.asset_ref,
                         detail="locked subject skipped",
+                    )
+                )
+                continue
+
+            if use_mesh:
+                mesh_params: dict = {
+                    "prompt": subject.description,
+                    "subject_class": subj_class,
+                }
+                if state.sample_image_urls:
+                    mesh_params["reference_image_url"] = state.sample_image_urls[0]
+
+                intents.append(
+                    CreativeIntent(
+                        kind="generate_mesh",
+                        target_path=target,
+                        parameters=mesh_params,
+                        seed=rng.randint(0, 2**31),
+                        adapter_hint="text_to_3d",
+                        output_kind="mesh",
+                    )
+                )
+                events.append(
+                    CreativeEvent(
+                        kind="CreativeIntentDispatched",
+                        target_path=target,
+                        detail=f"generate_mesh ({subj_class}): {subject.description[:80]}",
                     )
                 )
                 continue
@@ -128,6 +161,7 @@ def creative_dispatcher_node(state: AgentState) -> dict:
                     parameters=params,
                     seed=rng.randint(0, 2**31),
                     adapter_hint="local.sdxl",
+                    output_kind="image",
                 )
             )
             events.append(

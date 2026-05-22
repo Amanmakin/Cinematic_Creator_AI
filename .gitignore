@@ -100,6 +100,10 @@ renders/
 apps/api/uar_assets/
 apps/api/previs_renders/
 apps/api/sample_images/
+apps/orchestrator/previs_renders/
+
+# ─── Adapter caches & runtime data ────────────────────────────────────────────
+data/
 
 # ─── Playwright ───────────────────────────────────────────────────────────────
 apps/web/playwright-report/

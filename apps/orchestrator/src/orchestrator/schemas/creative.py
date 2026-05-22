@@ -14,7 +14,11 @@ CreativeIntentKind = Literal[
     "apply_lens_blur",
     "stylize_palette",
     "regenerate_layer",
+    # Plan10 text→3D
+    "generate_mesh",
 ]
+
+OutputKind = Literal["mesh", "image", "wire"]
 
 
 class GenerateSubjectParams(BaseModel):
@@ -66,12 +70,21 @@ class RegenerateLayerParams(BaseModel):
     use_controlnet: bool = True
 
 
+class GenerateMeshParams(BaseModel):
+    prompt: str
+    subject_class: Literal["object", "landscape"] = "object"
+    negative_prompt: str = ""
+    reference_image_url: str | None = None
+    style_hint: str = "studio product photo, isolated white background, orthographic front view"
+
+
 class CreativeIntent(BaseModel):
     kind: CreativeIntentKind
     target_path: str
     parameters: dict[str, Any]
     seed: int
     adapter_hint: str | None = "local.sdxl"
+    output_kind: OutputKind = "image"
 
 
 class AssetRef(BaseModel):

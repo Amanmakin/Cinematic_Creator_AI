@@ -104,40 +104,22 @@ export default function Viewport({ glbUrl }: ViewportProps) {
 
 function WireframeGlb({ url }: { url: string }) {
   const { scene } = useGLTF(url);
-  const coloredScene = useMemo(() => {
+  const wireScene = useMemo(() => {
     const clone = scene.clone(true);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x818cf8,
+      wireframe: true,
+    });
     clone.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (!mesh.isMesh) return;
-      // Keep vertex colors from GLB when present; upgrade to MeshStandardMaterial
-      // so the scene lights affect the model properly.
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      const upgraded = mats.map((m) => {
-        if (m instanceof THREE.MeshStandardMaterial) {
-          m.roughness = Math.max(m.roughness, 0.6);
-          return m;
-        }
-        const color =
-          m instanceof THREE.MeshBasicMaterial ||
-          m instanceof THREE.MeshLambertMaterial ||
-          m instanceof THREE.MeshPhongMaterial
-            ? (m as THREE.MeshBasicMaterial).color
-            : new THREE.Color(0x818cf8);
-        const std = new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.75,
-          metalness: 0.05,
-          vertexColors: (mesh.geometry.attributes.color) ? true : false,
-        });
-        return std;
-      });
-      mesh.material = upgraded.length === 1 ? upgraded[0] : upgraded;
+      mesh.material = wireMat;
     });
     return clone;
   }, [scene]);
   return (
     <Center>
-      <primitive object={coloredScene} />
+      <primitive object={wireScene} />
       <gridHelper args={[10, 10, "#2a2a3e", "#1a1a28"]} position={[0, -0.01, 0]} />
     </Center>
   );

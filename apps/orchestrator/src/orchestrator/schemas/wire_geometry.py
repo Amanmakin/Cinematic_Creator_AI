@@ -8,14 +8,14 @@ MaterialHint = Literal["wood", "metal", "plastic", "fabric", "glass", "stone", "
 
 
 class WirePrimitive(BaseModel):
-    kind: Literal["box", "cylinder", "sphere"]
+    kind: Literal["box", "cylinder", "sphere", "cone", "mountain", "terrain"]
     label: str = Field(description="Human-readable part name, e.g. 'seat', 'front_left_leg'")
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
-    width: float = Field(gt=0, description="X extent in metres (diameter for cylinder/sphere)")
-    depth: float = Field(gt=0, description="Y extent in metres (same as width for cylinder/sphere)")
-    height: float = Field(gt=0, description="Z extent in metres (height for cylinder)")
+    width: float = Field(gt=0, description="X extent in metres (diameter for cylinder/sphere/cone)")
+    depth: float = Field(gt=0, description="Y extent in metres (same as width for cylinder/sphere/cone)")
+    height: float = Field(gt=0, description="Z extent in metres (vertical height; peak amplitude for terrain)")
     rot_x: float = 0.0
     rot_y: float = 0.0
     rot_z: float = 0.0
@@ -36,6 +36,32 @@ class WirePrimitive(BaseModel):
             "If set, a vertical gradient is applied: color_hex at the top, gradient_bottom_hex "
             "at the bottom. Ideal for gradient-painted bottles, ombre finishes, etc. "
             "Requires color_hex to also be set."
+        ),
+    )
+    roughness: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Surface noise amplitude for organic primitives (mountain/terrain). "
+            "0.0 = perfectly smooth, 1.0 = very jagged. Default 0.35 for mountain, 0.6 for terrain."
+        ),
+    )
+    noise_frequency: float | None = Field(
+        default=None,
+        gt=0.0,
+        description=(
+            "Spatial frequency of the noise displacement for mountain/terrain. "
+            "Higher = more peaks/detail per metre. Default 1.5 for terrain, 3.0 for mountain."
+        ),
+    )
+    subdivisions: int | None = Field(
+        default=None,
+        ge=4,
+        le=256,
+        description=(
+            "Subdivision count for terrain primitives — controls mesh density. "
+            "Default 48. Higher = smoother but slower."
         ),
     )
 

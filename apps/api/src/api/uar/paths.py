@@ -31,3 +31,13 @@ def ensure_asset_dir(uar_root: str, project_id: str, sha256: str) -> str:
     d = asset_dir(uar_root, project_id, sha256)
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def glb_path(uar_root: str, project_id: str, sha256: str) -> str:
+    d = asset_dir(uar_root, project_id, sha256)
+    return os.path.join(d, f"{sha256}.glb")
+
+
+def mesh_meta_path(uar_root: str, project_id: str, sha256: str) -> str:
+    d = asset_dir(uar_root, project_id, sha256)
+    return os.path.join(d, f"{sha256}_mesh.json")

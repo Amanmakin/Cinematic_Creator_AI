@@ -2,10 +2,8 @@
 
 import { useEffect } from "react";
 import ApprovalDialog from "@/components/ControlPanel/ApprovalDialog";
-import BudgetIndicator from "@/components/ControlPanel/BudgetIndicator";
 import PhaseStatusBar from "@/components/ControlPanel/PhaseStatusBar";
 import PromptComposer from "@/components/ControlPanel/PromptComposer";
-import Timeline from "@/components/ControlPanel/Timeline";
 import Viewport from "@/components/RenderStudio/Viewport";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { useProjectStore } from "@/state/projectStore";
@@ -54,8 +52,6 @@ export default function WorkspacePage() {
         <h1 className="text-lg font-semibold text-indigo-400 tracking-tight">AI Studio</h1>
         <PromptComposer />
         <PhaseStatusBar />
-        <Timeline />
-        <BudgetIndicator />
         {projectId && <SettingsDrawer projectId={projectId} />}
       </aside>
 

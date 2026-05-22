@@ -24,3 +24,11 @@ def route_after_validation(state: AgentState) -> str:
     if state.retry_count >= MAX_RETRIES:
         return "fail"
     return "retry"
+
+
+def route_after_creative_dispatch(state: AgentState) -> str:
+    """Plan10: route mesh intents to mesh_generator, others to visual_generator."""
+    for intent in state.creative_intents:
+        if intent.output_kind == "mesh" or intent.kind == "generate_mesh":
+            return "mesh"
+    return "image"

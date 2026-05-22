@@ -142,6 +142,9 @@ class _StructuredChain:
             elif schema_name == "WireframeGeometry":
                 # Return None so the renderer falls back to subject AABBs in dummy mode.
                 parsed = None
+            elif schema_name == "SubjectClassification":
+                from orchestrator.nodes.subject_classifier import SubjectClassification
+                parsed = SubjectClassification(subject_class="object", confidence=0.9)
             else:
                 raise ValueError(f"DummyLLM: no fixture for schema '{schema_name}'")
 

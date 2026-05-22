@@ -33,5 +33,17 @@ class Settings(BaseSettings):
     previs_output_dir: str = "previs_renders"
     """Directory where wireframe previs PNGs are written (served at /previs)."""
 
+    # Plan10 text→3D pipeline
+    triposr_url: str = "http://localhost:8002"
+    """TripoSR Docker service base URL."""
+    shap_e_url: str = "http://localhost:8003"
+    """Shap-E Docker service base URL."""
+    poly_haven_api_url: str = "https://api.polyhaven.com"
+    """Poly Haven public API base URL."""
+    poly_haven_cache_dir: str = "data/poly_haven_cache"
+    """Local cache for downloaded Poly Haven glb/hdri files."""
+    mesh_pipeline_strategy: str = "openai_assisted"
+    """openai_assisted | local_fallback | local_only — see text_to_3d_adapter."""
+
 
 settings = Settings()

@@ -17,9 +17,14 @@ from orchestrator.nodes import (
     scene_graph_generator_node,
     semantic_locker_node,
     speculative_batcher_node,
+    subject_classifier_node,
     wireframe_previs_generator_node,
 )
-from orchestrator.routing import route_after_intent, route_after_validation
+from orchestrator.routing import (
+    route_after_creative_dispatch,
+    route_after_intent,
+    route_after_validation,
+)
 from orchestrator.state import AgentState, GenerationMode
 
 
@@ -51,10 +56,12 @@ def build_graph(
     interrupt_after_speculative: bool = True,
     visual_generator_node: Callable[[AgentState], dict] | None = None,
     gltf_assembler_node: Callable[[AgentState], dict] | None = None,
+    mesh_generator_node: Callable[[AgentState], dict] | None = None,
 ) -> CompiledStateGraph:
     g = StateGraph(AgentState)
 
     g.add_node("intent_validator", intent_validator_node)
+    g.add_node("subject_classifier", subject_classifier_node)
     g.add_node("generation_mode_parser", generation_mode_parser_node)
     g.add_node("semantic_locker", semantic_locker_node)
     g.add_node("scene_graph_generator", scene_graph_generator_node)
@@ -63,6 +70,9 @@ def build_graph(
 
     if visual_generator_node is not None:
         g.add_node("visual_generator", visual_generator_node)
+
+    if mesh_generator_node is not None:
+        g.add_node("mesh_generator", mesh_generator_node)
 
     g.add_node("physical_validation", physical_validation_node)
     g.add_node("dsl_compiler", dsl_compiler_node)
@@ -80,11 +90,12 @@ def build_graph(
         {
             "human_approval": END,
             "speculative": "speculative_batcher",
-            "proceed": "generation_mode_parser",
+            "proceed": "subject_classifier",
             "fail": END,
         },
     )
 
+    g.add_edge("subject_classifier", "generation_mode_parser")
     g.add_edge("generation_mode_parser", "semantic_locker")
     g.add_edge("semantic_locker", "scene_graph_generator")
     g.add_edge("scene_graph_generator", "wireframe_previs_generator")
@@ -100,7 +111,30 @@ def build_graph(
         },
     )
 
-    if visual_generator_node is not None:
+    have_visual = visual_generator_node is not None
+    have_mesh = mesh_generator_node is not None
+
+    if have_visual and have_mesh:
+        g.add_conditional_edges(
+            "creative_dispatcher",
+            route_after_creative_dispatch,
+            {
+                "mesh": "mesh_generator",
+                "image": "visual_generator",
+            },
+        )
+        g.add_edge("mesh_generator", "physical_validation")
+        g.add_conditional_edges(
+            "visual_generator",
+            route_after_model,
+            {
+                END: END,
+                "physical_validation": "physical_validation",
+                "visual_generator": "visual_generator",
+                "wireframe_previs_generator": "wireframe_previs_generator",
+            },
+        )
+    elif have_visual:
         g.add_edge("creative_dispatcher", "visual_generator")
         g.add_conditional_edges(
             "visual_generator",
@@ -112,6 +146,9 @@ def build_graph(
                 "wireframe_previs_generator": "wireframe_previs_generator",
             },
         )
+    elif have_mesh:
+        g.add_edge("creative_dispatcher", "mesh_generator")
+        g.add_edge("mesh_generator", "physical_validation")
     else:
         g.add_edge("creative_dispatcher", "physical_validation")
 

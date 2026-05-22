@@ -168,8 +168,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   applyOt: async (ops) => {
-    const { projectId, otVersion, otSceneGraph } = get();
-    if (!projectId || !otSceneGraph) return;
+    const { projectId, otVersion, otSceneGraph, agentState } = get();
+    if (!projectId) return;
+    // Allow first-edit commits: server lazy-initializes its OT store from the
+    // LangGraph scene_graph when otSceneGraph hasn't been populated yet.
+    if (!otSceneGraph && !agentState?.scene_graph) return;
     set({ error: null });
     try {
       await api.submitOt(projectId, otVersion, ops);

@@ -29,3 +29,37 @@ services:
       retries: 5
       start_period: 120s
     restart: unless-stopped
+
+  triposr:
+    build: ./docker/triposr
+    container_name: cinematic-triposr
+    ports:
+      - "8002:8000"
+    environment:
+      - DEVICE=${DOCKER_DEVICE:-cpu}
+    volumes:
+      - ./docker/models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    restart: unless-stopped
+
+  shap_e:
+    build: ./docker/shap_e
+    container_name: cinematic-shap-e
+    ports:
+      - "8003:8000"
+    environment:
+      - DEVICE=${DOCKER_DEVICE:-cpu}
+    volumes:
+      - ./docker/models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    restart: unless-stopped

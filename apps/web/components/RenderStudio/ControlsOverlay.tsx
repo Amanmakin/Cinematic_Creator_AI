@@ -145,8 +145,8 @@ export default function ControlsOverlay({
                 path={`scene.lights[${i}].intensity`}
                 value={light.intensity}
                 min={0}
-                max={5}
-                step={0.05}
+                max={2000}
+                step={10}
                 locked={isPathLocked(`scene.lights[${i}].intensity`, lockedPaths)}
                 onChange={debouncedCommit}
               />

@@ -3,7 +3,7 @@
 > Auto-maintained reference. Update this file whenever nodes, state fields, routing conditions,
 > schemas, routes, or infrastructure change. See `CLAUDE.md` for the update rule.
 >
-> Last synced: 2026-05-22
+> Last synced: 2026-05-22 (Plan10 — text→3D pipeline)
 
 ---
 
@@ -61,13 +61,24 @@
 ├── workers/
 │   └── render/       Headless Blender worker
 ├── docker/
-│   └── diffusers/    Local diffusers Docker image (SD 1.5 / SDXL)
+│   ├── diffusers/    Local diffusers Docker image (SD 1.5 / SDXL)
+│   ├── triposr/      Plan10. TripoSR image→3D service (port 8002)
+│   └── shap_e/       Plan10. Shap-E text→3D service (port 8003)
+├── data/
+│   └── poly_haven_cache/   Plan10. Local cache for Poly Haven glb/hdri downloads
 ├── docker-compose.yml
 ├── docs/
 │   ├── ARCHITECTURE.md           Canonical vision doc (source of truth)
 │   └── ARCHITECTURE_SNAPSHOT.md  ← this file
 └── plans/            PlanN.md versioned build contracts
 ```
+
+---
+
+## Why LangChain + LangGraph
+
+- **LangGraph** — the pipeline is a cyclic graph with conditional routing (ambiguity, validation retries, wireframe→model→video, feedback loops) and human-in-the-loop interrupts. `StateGraph` gives us typed `AgentState`, reducer-based merging, and free checkpointing (`MemorySaver` / `SqliteSaver`) that powers `/checkpoints`, `/forks`, and `/approvals` without us building it.
+- **LangChain** — provides the LLM I/O surface: `with_structured_output` enforces Pydantic contracts (`IntentSpec`, `BlenderDsl`) so OpenAI is only ever called for typed JSON, and `BaseChatModel` lets `llm_settings.py` swap providers per-node without touching node code.
 
 ---
 
@@ -98,6 +109,9 @@
 | `model_renders` | `list[str] \| None` | URLs to 2D model renders |
 | `model_feedback` | `str \| None` | User feedback on model renders |
 | `gltf_assembled_path` | `str \| None` | API URL path to assembled .glb |
+| `subject_class` | `Literal["object","landscape","abstract"] \| None` | Plan10 routing key (text→3D vs wireframe) |
+| `subject_class_confidence` | `float` | LLM confidence on `subject_class` (0–1) |
+| `mesh_assets` | `list[MeshAsset]` | Plan10 mesh outputs (TripoSR / Shap-E / Poly Haven) |
 
 ### ExecutionStage values
 
@@ -118,6 +132,8 @@ idle → intent_validated → awaiting_human_approval
                              → gltf_assembled
                              → render_progress → render_timed_out
                              → render_completed → completed
+                             → subject_classified           (Plan10)
+                             → mesh_generating → mesh_generated / mesh_generation_failed
 failed
 ```
 
@@ -138,6 +154,8 @@ failed
 | `speculative_batcher` | `speculative_batcher.py` | LLM | Generates 2–3 `BlenderDsl` variants on medium ambiguity |
 | `visual_generator` | _(injected via `build_graph`)_ | Adapter call | Calls `HybridAdapter` / `ReplicateAdapter` for image generation |
 | `gltf_assembler` | _(injected via `build_graph`)_ | Pure Python | Assembles glTF/glb from layer assets; sets `gltf_assembled_path` |
+| `subject_classifier` | `subject_classifier.py` | LLM (structured output) | Plan10. Labels prompt as `object` / `landscape` / `abstract`; sets `subject_class` |
+| `mesh_generator` | `mesh_generator.py` + `api/orchestrator/mesh_dispatch.py` | Adapter call | Plan10. Resolves mesh intents via `TextTo3DAdapter` (DALL-E+TripoSR or Shap-E) or `PolyHavenAdapter` |
 
 ---
 
@@ -150,7 +168,14 @@ failed
 | `execution_status == "failed"` | `END` (fail) |
 | `ambiguity_score > 0.8` | `END` (human_approval interrupt) |
 | `0.4 < ambiguity_score <= 0.8` | `speculative_batcher` |
-| `ambiguity_score <= 0.4` | `generation_mode_parser` (proceed) |
+| `ambiguity_score <= 0.4` | `subject_classifier` → `generation_mode_parser` (proceed) |
+
+### After `creative_dispatcher` (Plan10)
+
+| Condition | Destination |
+|---|---|
+| Any intent has `output_kind == "mesh"` | `mesh_generator` |
+| Otherwise | `visual_generator` |
 
 ### After `wireframe_previs_generator`
 
@@ -197,6 +222,7 @@ failed
 | `LayerAsset` | `creative.py` | Subject / Background / FX asset with alpha + depth |
 | `Previsualization` | `previsualization.py` | Wireframe render set with metadata |
 | `WireGeometry` | `wire_geometry.py` | Camera-frustum wireframe geometry primitives |
+| `MeshAsset` | `mesh_asset.py` | Plan10. Content-addressed glb + bounds + transform |
 
 ---
 
@@ -229,6 +255,10 @@ failed
 | `HybridAdapter` | `hybrid_adapter.py` | Local-first (diffusers Docker) with Replicate fallback (Plan8) |
 | `LocalDockerAdapter` | `local_docker_adapter.py` | Calls local diffusers service on `localhost:8001` |
 | `ComfyUIAdapter` | `comfyui_adapter.py` | Translates `CreativeIntent` to ComfyUI workflow JSON |
+| `TextTo3DAdapter` | `text_to_3d_adapter.py` | Plan10. DALL-E 3 reference → TripoSR (default) with Shap-E fallback |
+| `TripoSRClient` | `triposr_client.py` | Plan10. HTTP client for the TripoSR Docker service on :8002 |
+| `ShapEClient` | `shap_e_client.py` | Plan10. HTTP client for the Shap-E Docker service on :8003 |
+| `PolyHavenAdapter` | `poly_haven_adapter.py` | Plan10. Text → Poly Haven glb landscape asset, locally cached |
 
 ---
 
@@ -256,6 +286,7 @@ failed
 | Task: final render | `tasks/render_final.py` | Hard-gated mp4 export |
 | Task: DSL validation | `tasks/validate_dsl.py` | Pre-queue schema check |
 | Task: visual generation | `tasks/visual.py` | Image layer generation task |
+| Task: mesh generation | `tasks/mesh.py` | Plan10. Runs text→3D pipeline and persists `MeshAsset` |
 | Task: compress history | `tasks/compress_history.py` | Periodic memory compression |
 
 ---
@@ -269,6 +300,7 @@ failed
 | `gltf_assembly.py` | Assembles layer assets into a single glTF/glb |
 | `ot.py` | Operational Transformations — transactional scene graph mutations |
 | `scene_graph_path.py` | Path helpers for scene graph traversal |
+| `mesh_dispatch.py` | Plan10. Builds the `mesh_generator` node with text→3D and Poly Haven adapters |
 
 ---
 
@@ -304,6 +336,8 @@ failed
 |---|---|---|---|
 | `redis` | `redis:7-alpine` | 6379 | arq job queue + pub/sub |
 | `diffusers` | `./docker/diffusers` | 8001 | Local SD 1.5 / SDXL inference (Mac M-series, CPU) |
+| `triposr` | `./docker/triposr` | 8002 | Plan10. Image→3D mesh via TripoSR |
+| `shap_e` | `./docker/shap_e` | 8003 | Plan10. Text→3D mesh via Shap-E (offline fallback) |
 
 ### Key environment variables
 
@@ -312,6 +346,11 @@ failed
 | `OPENAI_API_KEY` | — | Required for all LLM structured-output calls |
 | `DOCKER_SMALLER_MODEL` | `true` | `true` = SD 1.5, `false` = SDXL |
 | `DOCKER_DEVICE` | `cpu` | `cpu` for Mac M-series, `cuda` for GPU Linux |
+| `TRIPOSR_URL` | `http://localhost:8002` | TripoSR service base URL (Plan10) |
+| `SHAP_E_URL` | `http://localhost:8003` | Shap-E service base URL (Plan10) |
+| `POLY_HAVEN_API_URL` | `https://api.polyhaven.com` | Poly Haven public API (Plan10) |
+| `POLY_HAVEN_CACHE_DIR` | `data/poly_haven_cache` | Local glb/hdri cache (Plan10) |
+| `MESH_PIPELINE_STRATEGY` | `openai_assisted` | `openai_assisted` / `local_fallback` / `local_only` (Plan10) |
 
 ---
 
@@ -340,3 +379,4 @@ failed
 | Plan7 | Memory hardening (five-tier hierarchical + semantic retrieval) | — |
 | Plan8 | Hybrid Adapter: local diffusers + Replicate fallback (Mac M4) | In progress |
 | Plan9 | Deterministic wireframe previsualization node + staged generation | In progress |
+| Plan10 | Accurate text→3D pipeline (TripoSR / Shap-E / Poly Haven) | Complete |

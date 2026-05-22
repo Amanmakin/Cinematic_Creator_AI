@@ -7,7 +7,10 @@ from orchestrator.schemas.canon import ProjectCanon
 from orchestrator.schemas.creative import CreativeIntent, LayerAsset
 from orchestrator.schemas.dsl import BlenderDsl
 from orchestrator.schemas.intent import IntentSpec
+from orchestrator.schemas.mesh_asset import MeshAsset
 from orchestrator.schemas.previsualization import Previsualization
+
+SubjectClass = Literal["object", "landscape", "abstract"]
 
 ExecutionStage = Literal[
     "idle",
@@ -36,6 +39,11 @@ ExecutionStage = Literal[
     "render_completed",
     "completed",
     "failed",
+    # Plan10 text→3D stages
+    "subject_classified",
+    "mesh_generating",
+    "mesh_generated",
+    "mesh_generation_failed",
 ]
 
 
@@ -99,3 +107,7 @@ class AgentState(BaseModel):
     model_feedback: str | None = None
     gltf_assembled_path: str | None = None  # API URL path to the assembled .glb, set by gltf_assembler
     sample_image_urls: list[str] = Field(default_factory=list)  # reference images uploaded with the prompt
+    # Plan10 text→3D fields
+    subject_class: SubjectClass | None = None
+    subject_class_confidence: float = 0.0
+    mesh_assets: list[MeshAsset] = Field(default_factory=list)

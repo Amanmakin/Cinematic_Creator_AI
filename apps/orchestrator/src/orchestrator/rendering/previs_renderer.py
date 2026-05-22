@@ -32,6 +32,9 @@ def _primitives_from_geometry(geo: WireframeGeometry) -> list[dict]:
             "material_hint":      p.material_hint,
             "color_hex":          p.color_hex,
             "gradient_bottom_hex": p.gradient_bottom_hex,
+            "roughness":          p.roughness,
+            "noise_frequency":    p.noise_frequency,
+            "subdivisions":       p.subdivisions,
         }
         for p in geo.primitives
     ]

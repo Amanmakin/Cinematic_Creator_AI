@@ -12,6 +12,7 @@ import aiosqlite
 
 from api.uar import paths as uar_paths
 from orchestrator.schemas.creative import CreativeIntent, LayerAsset
+from orchestrator.schemas.mesh_asset import BBox3, MeshAsset
 
 if TYPE_CHECKING:
     from api.adapters.base import CreativeAdapter, ProjectCtx
@@ -49,6 +50,24 @@ async def _init_uar_table(db: aiosqlite.Connection) -> None:
     )
     await db.execute(
         "CREATE INDEX IF NOT EXISTS idx_assets_project_target ON assets(project_id, target_path)"
+    )
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS meshes (
+            id TEXT PRIMARY KEY,
+            glb_path TEXT NOT NULL,
+            bounds_json TEXT NOT NULL,
+            material_summary TEXT NOT NULL,
+            source TEXT NOT NULL,
+            target_path TEXT NOT NULL,
+            transform_json TEXT NOT NULL,
+            adapter TEXT NOT NULL,
+            adapter_version TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            created_at REAL NOT NULL
+        )
+    """)
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_meshes_project_target ON meshes(project_id, target_path)"
     )
     await db.commit()
 
@@ -179,6 +198,105 @@ class UARStore:
         return asset, False
 
 
+    async def store_mesh(
+        self,
+        project_id: str,
+        glb_bytes: bytes,
+        bounds_m: BBox3,
+        source: str,
+        target_path: str = "",
+        material_summary: str = "stylised",
+        adapter: str = "",
+        adapter_version: str = "",
+        position: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    ) -> MeshAsset:
+        """Persist a glb to content-addressed storage and index it.
+
+        Returns the constructed MeshAsset with asset_id = sha256(glb_bytes).
+        Idempotent on the content hash — re-storing identical bytes returns the
+        existing row.
+        """
+        sha = hashlib.sha256(glb_bytes).hexdigest()
+        uar_paths.ensure_asset_dir(self._uar_root, project_id, sha)
+        gp = uar_paths.glb_path(self._uar_root, project_id, sha)
+
+        if not os.path.exists(gp):
+            tmp = gp + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(glb_bytes)
+            os.replace(tmp, gp)
+
+        transform = {"position": list(position), "rotation": list(rotation), "scale": list(scale)}
+        bounds_json = bounds_m.model_dump_json()
+        transform_json = json.dumps(transform)
+        created_at = time.time()
+
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """INSERT OR REPLACE INTO meshes
+                   (id, glb_path, bounds_json, material_summary, source, target_path,
+                    transform_json, adapter, adapter_version, project_id, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    sha,
+                    gp,
+                    bounds_json,
+                    material_summary,
+                    source,
+                    target_path,
+                    transform_json,
+                    adapter,
+                    adapter_version,
+                    project_id,
+                    created_at,
+                ),
+            )
+            await db.commit()
+
+        return MeshAsset(
+            asset_id=sha,
+            glb_path=gp,
+            bounds_m=bounds_m,
+            material_summary=material_summary,  # type: ignore[arg-type]
+            source=source,  # type: ignore[arg-type]
+            target_path=target_path,
+            position=position,
+            rotation=rotation,
+            scale=scale,
+            adapter=adapter,
+            adapter_version=adapter_version,
+            created_at=created_at,
+        )
+
+    async def load_mesh(self, asset_id: str) -> MeshAsset | None:
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM meshes WHERE id = ?", (asset_id,)
+            ) as cur:
+                row = await cur.fetchone()
+        if row is None:
+            return None
+        return _row_to_mesh(dict(row))
+
+    async def get_mesh_by_target(
+        self, project_id: str, target_path: str
+    ) -> MeshAsset | None:
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM meshes WHERE project_id = ? AND target_path = ? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (project_id, target_path),
+            ) as cur:
+                row = await cur.fetchone()
+        if row is None:
+            return None
+        return _row_to_mesh(dict(row))
+
+
 def _write_placeholder(path: str, data: bytes) -> None:
     tmp = path + ".tmp"
     with open(tmp, "wb") as f:
@@ -217,6 +335,28 @@ async def _save_image(source_url: str | None, dest_path: str) -> None:
             except Exception:
                 pass
     _write_placeholder(dest_path, b"RGBA_PLACEHOLDER")
+
+
+def _row_to_mesh(row: dict) -> MeshAsset:
+    bounds = BBox3.model_validate_json(row["bounds_json"])
+    transform = json.loads(row["transform_json"])
+    pos = tuple(transform.get("position", [0.0, 0.0, 0.0]))
+    rot = tuple(transform.get("rotation", [0.0, 0.0, 0.0]))
+    scl = tuple(transform.get("scale", [1.0, 1.0, 1.0]))
+    return MeshAsset(
+        asset_id=row["id"],
+        glb_path=row["glb_path"],
+        bounds_m=bounds,
+        material_summary=row["material_summary"],
+        source=row["source"],
+        target_path=row["target_path"],
+        position=pos,  # type: ignore[arg-type]
+        rotation=rot,  # type: ignore[arg-type]
+        scale=scl,  # type: ignore[arg-type]
+        adapter=row["adapter"],
+        adapter_version=row["adapter_version"],
+        created_at=row["created_at"],
+    )
 
 
 def _row_to_asset(row: dict) -> LayerAsset:
