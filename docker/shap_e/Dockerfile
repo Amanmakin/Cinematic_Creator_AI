@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir \
     torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
-    fastapi uvicorn[standard] pillow numpy trimesh \
+    fastapi uvicorn[standard] pillow numpy trimesh ipywidgets \
     git+https://github.com/openai/shap-e.git
 
 COPY app.py /app/

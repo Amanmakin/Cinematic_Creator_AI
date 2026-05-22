@@ -1,12 +1,15 @@
-"""OpenAI DALL-E adapter — generates images via OpenAI's images API."""
+"""OpenAI image adapter — generates images via OpenAI's images API (gpt-image-1)."""
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from api.adapters.base import ProviderUnavailable
+from api.settings import settings
 from orchestrator.schemas.creative import AssetRef, CreativeIntent, ProviderPayload
 
 if TYPE_CHECKING:
@@ -14,12 +17,12 @@ if TYPE_CHECKING:
 
 
 class OpenAIDALLEAdapter:
-    """Calls OpenAI images.generate (DALL-E 3) and returns a hosted URL as AssetRef."""
+    """Calls OpenAI images.generate (gpt-image-1) and persists the b64 result as a local asset."""
 
     name = "openai_dalle"
-    version = "1.0.0"
+    version = "2.0.0"
 
-    def __init__(self, api_key: str, model: str = "dall-e-3", size: str = "1024x1024") -> None:
+    def __init__(self, api_key: str, model: str = "gpt-image-1", size: str = "1024x1024") -> None:
         if not api_key:
             raise ValueError("OPENAI_API_KEY is required for the openai_dalle strategy")
         self._api_key = api_key
@@ -66,10 +69,26 @@ class OpenAIDALLEAdapter:
         except openai.OpenAIError as exc:
             raise ProviderUnavailable(f"OpenAI API error: {exc}") from exc
 
-        image_url = response.data[0].url
-        if not image_url:
-            raise ProviderUnavailable("OpenAI returned no image URL")
+        item = response.data[0]
+        # gpt-image-1 returns b64_json; older models may still return url.
+        b64 = getattr(item, "b64_json", None)
+        if b64:
+            img_bytes = base64.b64decode(b64)
+            asset_id = hashlib.sha256(img_bytes).hexdigest()[:16]
+            out_dir = Path(settings.uar_root) / "openai_images"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"{asset_id}.png"
+            out_path.write_bytes(img_bytes)
+            return AssetRef(
+                asset_id=asset_id,
+                adapter=self.name,
+                adapter_version=self.version,
+                source_url=str(out_path),
+            )
 
+        image_url = getattr(item, "url", None)
+        if not image_url:
+            raise ProviderUnavailable("OpenAI returned neither b64_json nor url")
         asset_id = hashlib.sha256(f"{image_url}{time.time()}".encode()).hexdigest()[:16]
         return AssetRef(
             asset_id=asset_id,
@@ -79,4 +98,4 @@ class OpenAIDALLEAdapter:
         )
 
     def cost_estimate(self, payload: ProviderPayload) -> int:
-        return 40  # rough token-budget equivalent for a DALL-E 3 call
+        return 40  # rough token-budget equivalent for a gpt-image-1 call

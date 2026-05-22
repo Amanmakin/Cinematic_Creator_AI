@@ -11,6 +11,8 @@ import concurrent.futures
 import logging
 from typing import Callable
 
+import aiosqlite
+
 from api.adapters.base import ProviderUnavailable
 from api.adapters.poly_haven_adapter import PolyHavenAdapter
 from api.adapters.text_to_3d_adapter import TextTo3DAdapter
@@ -22,6 +24,38 @@ from orchestrator.schemas.mesh_asset import MeshAsset
 from orchestrator.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+# Image-gen strategy (per-project, set by GenerationSettingsPanel) → mesh strategy.
+# When the user opts out of OpenAI for images, they also opt out for the
+# DALL-E-assisted mesh pipeline; we fall back to Shap-E.
+_IMAGE_TO_MESH_STRATEGY = {
+    "local_only":     "local_only",
+    "local_fallback": "local_fallback",
+    "openai_dalle":   "openai_assisted",
+}
+
+
+async def _project_mesh_strategy(project_id: str) -> str:
+    """Look up the project's image-generation strategy and map it to a mesh strategy.
+
+    Falls back to the global default in `settings.mesh_pipeline_strategy` when
+    the project has no override stored.
+    """
+    try:
+        async with aiosqlite.connect(settings.db_path) as db:
+            async with db.execute(
+                "SELECT strategy FROM generation_settings WHERE project_id = ?",
+                (project_id,),
+            ) as cur:
+                row = await cur.fetchone()
+    except Exception as exc:  # table may not exist yet on a fresh DB
+        logger.debug("generation_settings lookup failed (%s); using global default", exc)
+        return settings.mesh_pipeline_strategy
+
+    if row is None:
+        return settings.mesh_pipeline_strategy
+    img_strategy = row[0]
+    return _IMAGE_TO_MESH_STRATEGY.get(img_strategy, settings.mesh_pipeline_strategy)
 
 
 def make_api_mesh_generator_node(
@@ -72,8 +106,10 @@ def make_api_mesh_generator_node(
                     adapter_version=poly_haven.version,
                 )
 
-        # Object (or landscape fallback): text_to_3d.
-        result = await text_to_3d.generate(prompt, seed=intent.seed)
+        # Object (or landscape fallback): text_to_3d, honouring the project's
+        # image-gen strategy (local_only → Shap-E only, no OpenAI calls).
+        mesh_strategy = await _project_mesh_strategy(project_id)
+        result = await text_to_3d.generate(prompt, seed=intent.seed, strategy=mesh_strategy)
         return await uar.store_mesh(
             project_id=project_id,
             glb_bytes=result.glb_bytes,

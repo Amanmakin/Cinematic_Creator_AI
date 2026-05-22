@@ -23,8 +23,8 @@ const STRATEGIES: { value: string; label: string; description: string }[] = [
   },
   {
     value: "openai_dalle",
-    label: "OpenAI DALL-E 3",
-    description: "Cloud generation via OpenAI DALL-E 3. Requires OPENAI_API_KEY. ~$0.04/image.",
+    label: "OpenAI (gpt-image-1)",
+    description: "Cloud generation via OpenAI gpt-image-1. Requires OPENAI_API_KEY. ~$0.04/image.",
   },
 ];
 
