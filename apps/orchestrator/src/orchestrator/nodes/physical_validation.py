@@ -16,10 +16,11 @@ def _aspect_matches(resolution: tuple[int, int], canon: ProjectCanon, tol: float
 
 
 def _point_in_aabb(p: Vec3, mn: Vec3, mx: Vec3) -> bool:
+    # Strict inequalities: a point on the AABB surface is not "inside."
     return (
-        mn.x <= p.x <= mx.x
-        and mn.y <= p.y <= mx.y
-        and mn.z <= p.z <= mx.z
+        mn.x < p.x < mx.x
+        and mn.y < p.y < mx.y
+        and mn.z < p.z < mx.z
     )
 
 

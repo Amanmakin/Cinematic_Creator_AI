@@ -77,12 +77,21 @@ def hex_to_rgba(hex_str):
     b = int(h[4:6], 16) / 255.0
     return (r, g, b, 1.0)
 
+def _set_mat_color(mat, rgba):
+    """Set base color via BSDF node (Blender 4.x) with diffuse_color fallback (3.x)."""
+    mat.use_nodes = True
+    bsdf = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf:
+        bsdf.inputs[0].default_value = rgba
+        bsdf.inputs["Roughness"].default_value = 0.75
+    mat.diffuse_color = rgba  # 3.x fallback
+
 def get_material(hint, color_hex=None):
     key = color_hex if color_hex else hint
     if key not in _mat_cache:
         rgba = hex_to_rgba(color_hex) if color_hex else MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
         mat = bpy.data.materials.new(name=f"mat_{key[:16]}")
-        mat.diffuse_color = rgba
+        _set_mat_color(mat, rgba)
         _mat_cache[key] = mat
     return _mat_cache[key]
 
@@ -127,9 +136,9 @@ def apply_gradient_vertex_colors(obj, top_hex, bottom_hex):
                 top_rgb[2]*t + bot_rgb[2]*(1-t),
                 1.0,
             )
-    # White base material so vertex colors render as-is
+    # White Principled BSDF base so vertex color shows through in glTF
     mat = bpy.data.materials.new(name=f"mat_grad_{obj.name[:8]}")
-    mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)
+    _set_mat_color(mat, (1.0, 1.0, 1.0, 1.0))
     obj.data.materials.clear()
     obj.data.materials.append(mat)
 
@@ -419,12 +428,21 @@ def hex_to_rgba(hex_str):
     b = int(h[4:6], 16) / 255.0
     return (r, g, b, 1.0)
 
+def _set_mat_color(mat, rgba):
+    """Set base color via BSDF node (Blender 4.x) with diffuse_color fallback (3.x)."""
+    mat.use_nodes = True
+    bsdf = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf:
+        bsdf.inputs[0].default_value = rgba
+        bsdf.inputs["Roughness"].default_value = 0.75
+    mat.diffuse_color = rgba  # 3.x fallback
+
 def get_material(hint, color_hex=None):
     key = color_hex if color_hex else hint
     if key not in _mat_cache:
         rgba = hex_to_rgba(color_hex) if color_hex else MATERIAL_COLORS.get(hint, MATERIAL_COLORS["default"])
         mat = bpy.data.materials.new(name=f"mat_{key[:16]}")
-        mat.diffuse_color = rgba
+        _set_mat_color(mat, rgba)
         _mat_cache[key] = mat
     return _mat_cache[key]
 
@@ -469,7 +487,7 @@ def apply_gradient_vertex_colors(obj, top_hex, bottom_hex):
                 1.0,
             )
     mat = bpy.data.materials.new(name=f"mat_grad_{obj.name[:8]}")
-    mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)
+    _set_mat_color(mat, (1.0, 1.0, 1.0, 1.0))
     obj.data.materials.clear()
     obj.data.materials.append(mat)
 

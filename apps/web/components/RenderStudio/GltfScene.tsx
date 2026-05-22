@@ -16,6 +16,23 @@ function GltfModel({ url }: GltfSceneProps) {
 
   useEffect(() => {
     const clone = gltfScene.clone(true);
+    // Ensure vertex colors from the GLB are honoured and lighting looks good.
+    clone.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      mats.forEach((m) => {
+        if (m instanceof THREE.MeshStandardMaterial) {
+          if (mesh.geometry.attributes.color) {
+            m.vertexColors = true;
+            // White base so vertex color shows without tinting
+            m.color.set(0xffffff);
+          }
+          m.roughness = Math.max(m.roughness, 0.55);
+          m.needsUpdate = true;
+        }
+      });
+    });
     scene.add(clone);
     addedRef.current = clone as unknown as THREE.Group;
     return () => {
