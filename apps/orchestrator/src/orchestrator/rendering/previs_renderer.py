@@ -149,6 +149,31 @@ class PrevisRenderer:
     def output_dir(self):
         return self._runtime.output_dir
 
+    def render_model_beauty(
+        self,
+        mesh_assets: list[MeshAsset] | None,
+        resolution: tuple[int, int] = (960, 960),
+    ) -> str | None:
+        """Render a shaded 'beauty' shot of the hero mesh(es) for the model-approval
+        overlay. Returns a ``/previs/<project_id>/...`` URL, or None when there is
+        no mesh / Blender is unavailable.
+
+        The output filename is keyed on the first mesh's asset_id so a regenerated
+        mesh produces a fresh URL instead of being served from the browser cache.
+        """
+        meshes = _mesh_assets_to_dicts(mesh_assets)
+        if not meshes:
+            return None
+        filename = f"model_{meshes[0]['asset_id']}.png"
+        fs_path = self._runtime.render_model_view(
+            mesh_assets=meshes,
+            resolution=resolution,
+            output_name=filename,
+        )
+        if fs_path is None:
+            return None
+        return self._url(filename)
+
     def render_wireframe_sheet(
         self,
         scene_graph: BlenderDsl | None = None,

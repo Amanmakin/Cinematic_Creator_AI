@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 from dataclasses import dataclass
 from typing import Callable
 
@@ -11,7 +13,13 @@ from api.orchestrator.budget import BudgetExceeded, BudgetLedger
 from api.settings import settings
 from api.uar.store import UARStore
 from orchestrator.schemas.creative import CreativeIntent, LayerAsset
+from orchestrator.schemas.mesh_asset import MeshAsset
 from orchestrator.state import AgentState, CreativeEvent
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_BLENDER = "/Applications/Blender.app/Contents/MacOS/blender"
+_DEFAULT_PREVIS_OUTPUT = "previs_renders"
 
 
 @dataclass
@@ -126,10 +134,25 @@ def make_visual_generator_node(
 
         # Build API-accessible URLs for the generated images so the frontend
         # can display them in the model approval viewport.
-        model_render_urls = [
-            f"/projects/{project_id}/assets/{a.id}/rgba"
-            for a in new_assets
-        ] if not has_budget_exceeded else None
+        if has_budget_exceeded:
+            model_render_urls = None
+        else:
+            bg_render_urls = [
+                f"/projects/{project_id}/assets/{a.id}/rgba"
+                for a in new_assets
+            ]
+            # Object/landscape subjects are produced as meshes (no 2-D layer of
+            # their own), so the loop above only yields the background. Lead the
+            # overlay with a shaded render of the hero mesh — with TripoSR's baked
+            # vertex colors — so the model-approval view shows the actual textured
+            # model rather than just the background layer.
+            mesh_render_urls: list[str] = []
+            if state.mesh_assets:
+                try:
+                    mesh_render_urls = _render_mesh_beauty(project_id, state.mesh_assets)
+                except Exception as exc:  # noqa: BLE001 — never fail the node on a preview render
+                    logger.warning("mesh beauty render failed: %s", exc)
+            model_render_urls = mesh_render_urls + bg_render_urls
 
         return {
             "generated_assets": state.generated_assets + new_assets,
@@ -140,3 +163,23 @@ def make_visual_generator_node(
         }
 
     return visual_generator_node
+
+
+def _render_mesh_beauty(project_id: str, mesh_assets: list[MeshAsset]) -> list[str]:
+    """Render a shaded beauty shot of the hero mesh(es) via Blender.
+
+    Returns ``[url]`` (a ``/previs/...`` path the static mount serves) or ``[]``
+    when there is no mesh or Blender is unavailable. Imported here to keep the
+    orchestrator rendering dependency lazy.
+    """
+    from orchestrator.rendering.previs_renderer import PrevisRenderer
+
+    blender_path = os.environ.get("BLENDER_PATH", _DEFAULT_BLENDER)
+    output_dir = os.environ.get("PREVIS_OUTPUT_DIR", _DEFAULT_PREVIS_OUTPUT)
+    renderer = PrevisRenderer(
+        output_dir=output_dir,
+        project_id=project_id,
+        blender_path=blender_path,
+    )
+    url = renderer.render_model_beauty(mesh_assets)
+    return [url] if url else []

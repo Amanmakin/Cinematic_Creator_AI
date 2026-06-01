@@ -89,16 +89,21 @@ class TextTo3DAdapter:
 
         # A user-supplied reference image is the strongest signal — reconstruct
         # directly from it via TripoSR (image→3D), skipping text→image generation.
-        # On failure we fall through to the text-based pipeline below.
         if reference_image is not None:
             try:
                 return await self._triposr_from_image(reference_image, subject)
             except ProviderUnavailable as exc:
+                # TripoSR is down (typically an OOM crash mid-inference). The
+                # openai_assisted path below would route through the *same*
+                # TripoSR service, so it can't succeed either — degrade straight
+                # to Shap-E text→3D. A real (if generic) mesh beats a hard failure,
+                # which renders downstream as a placeholder cube.
                 logger.warning(
                     "TripoSR reconstruction from reference image failed (%s); "
-                    "falling back to text pipeline",
+                    "degrading to Shap-E text→3D",
                     exc,
                 )
+                return await self._shap_e_only(subject, seed=seed)
 
         if active == "local_only":
             return await self._shap_e_only(subject, seed=seed)

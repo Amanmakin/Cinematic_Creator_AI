@@ -40,6 +40,14 @@ RUN pip install --no-cache-dir --no-build-isolation \
         printf 'import mcubes\nimport torch\n\ndef marching_cubes(volume, threshold=0.0, *args, **kwargs):\n    v_np = volume.detach().cpu().numpy() if hasattr(volume, "detach") else volume\n    verts, faces = mcubes.marching_cubes(v_np, float(threshold))\n    return torch.from_numpy(verts).float(), torch.from_numpy(faces.astype("int64"))\n\ndef grid_interp(*args, **kwargs):\n    raise NotImplementedError("torchmcubes.grid_interp shim not implemented; only marching_cubes is provided")\n' \
         > /usr/local/lib/python3.11/site-packages/torchmcubes.py)
 
+# TripoSR's requirements.txt pins trimesh==4.0.5, whose GLB exporter still calls
+# the removed ndarray.ptp() API and crashes under NumPy 2.x with
+# "'numpy.ndarray' object has no attribute 'ptp'". The rest of the pipeline runs
+# fine on NumPy 2.0, so we just override the pin — trimesh added NumPy 2.0
+# support in 4.4+. trimesh is pure-Python (no torchmcubes ABI impact), and this
+# sits after the torchmcubes build so a rebuild reuses that cached compile layer.
+RUN pip install --no-cache-dir -U "trimesh>=4.5"
+
 COPY app.py /app/
 
 ENV DEVICE=cpu

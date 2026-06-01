@@ -859,6 +859,151 @@ bpy.ops.render.render(write_still=True)
 '''
 
 
+_MODEL_RENDER_SCRIPT = '''
+import bpy, json, math, os, sys, mathutils
+
+data = json.loads(sys.argv[sys.argv.index("--") + 1])
+
+# ── Clean slate ──────────────────────────────────────────────────────────────
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scene = bpy.context.scene
+col   = scene.collection
+
+# EEVEE renders the imported glTF PBR material under real lights, giving natural
+# shading + warm highlights — far more lifelike than Workbench's flat matcap.
+try:
+    scene.render.engine = "BLENDER_EEVEE_NEXT"
+except (TypeError, AttributeError):
+    scene.render.engine = "BLENDER_EEVEE"
+scene.render.image_settings.file_format = "PNG"
+scene.render.resolution_x, scene.render.resolution_y = data["resolution"]
+scene.render.filepath                   = data["output_path"]
+
+# Standard view transform — the Blender 5.x default (AgX) tonemaps the already
+# muted TripoSR albedo down to flat gray; Standard keeps the baked colors true.
+try:
+    scene.view_settings.view_transform = "Standard"
+except (TypeError, AttributeError):
+    pass
+
+world = bpy.data.worlds.new("ModelWorld")
+world.use_nodes = True
+_wbg = world.node_tree.nodes.get("Background")
+if _wbg:
+    _wbg.inputs[0].default_value = (0.05, 0.05, 0.07, 1.0)
+    _wbg.inputs[1].default_value = 0.35  # soft ambient fill so shadows aren't black
+scene.world = world
+
+def import_mesh_asset(m):
+    glb_path = m.get("glb_path")
+    if not glb_path or not os.path.exists(glb_path):
+        print(f"mesh_asset skipped: missing glb_path {glb_path!r}")
+        return []
+    pre = set(bpy.data.objects)
+    try:
+        bpy.ops.import_scene.gltf(filepath=glb_path)
+    except Exception as _e:
+        print(f"gltf import failed for {glb_path}: {_e}")
+        return []
+    imported = [o for o in bpy.data.objects if o not in pre]
+    if not imported:
+        return []
+    root = next((o for o in imported if o.parent is None), imported[0])
+    pos = m.get("position", [0.0, 0.0, 0.0])
+    rot = m.get("rotation", [0.0, 0.0, 0.0])
+    scl = m.get("scale", [1.0, 1.0, 1.0])
+    root.location = (pos[0], pos[1], pos[2])
+    root.rotation_euler = (math.radians(rot[0]), math.radians(rot[1]), math.radians(rot[2]))
+    root.scale = (scl[0], scl[1], scl[2])
+    return imported
+
+def world_corners(objs):
+    pts = []
+    for obj in objs:
+        if obj.type != "MESH":
+            continue
+        for corner in obj.bound_box:
+            wc = obj.matrix_world @ mathutils.Vector(corner)
+            pts.append((wc.x, wc.y, wc.z))
+    return pts
+
+imported = []
+for ma in data.get("mesh_assets", []):
+    imported.extend(import_mesh_asset(ma))
+bpy.context.view_layer.update()
+
+corners = world_corners(imported) or [(-1.0, -1.0, 0.0), (1.0, 1.0, 1.0)]
+xs = [c[0] for c in corners]; ys = [c[1] for c in corners]; zs = [c[2] for c in corners]
+centroid = mathutils.Vector(((min(xs)+max(xs))/2, (min(ys)+max(ys))/2, (min(zs)+max(zs))/2))
+scene_radius = max(max(xs)-min(xs), max(ys)-min(ys), max(zs)-min(zs)) / 2 or 1.0
+
+# ── Material: wire TripoSR's baked vertex colors into the Principled base color,
+#    nudging saturation/value up to recover the warmth TripoSR under-predicts. ──
+def _wire_vertex_colors(obj):
+    me = obj.data
+    ca = getattr(me, "color_attributes", None)
+    cname = (ca.active_color.name if (ca and ca.active_color) else (ca[0].name if (ca and len(ca)) else None))
+    if not me.materials:
+        m = bpy.data.materials.new(f"vc_{obj.name[:8]}")
+        m.use_nodes = True
+        me.materials.append(m)
+    for m in me.materials:
+        if not m or not m.use_nodes:
+            continue
+        nt = m.node_tree
+        bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if bsdf is None:
+            continue
+        try:
+            bsdf.inputs["Roughness"].default_value = 0.55
+        except Exception:
+            pass
+        if not cname:
+            continue  # no baked colors (e.g. pre-fix mesh) — keep material default
+        vc = nt.nodes.new("ShaderNodeVertexColor"); vc.layer_name = cname
+        hsv = nt.nodes.new("ShaderNodeHueSaturation")
+        hsv.inputs["Saturation"].default_value = 1.35
+        hsv.inputs["Value"].default_value = 1.08
+        nt.links.new(vc.outputs["Color"], hsv.inputs["Color"])
+        nt.links.new(hsv.outputs["Color"], bsdf.inputs["Base Color"])
+
+for _o in imported:
+    if _o.type == "MESH":
+        _wire_vertex_colors(_o)
+
+# ── Three-point SUN rig. SUN energy is irradiance (W/m²), independent of distance,
+#    so it frames any mesh scale without the blowout area lights cause on small ones.
+def _sun(name, direction, energy, color):
+    d = bpy.data.lights.new(name, "SUN")
+    d.energy = energy; d.angle = 0.3; d.color = color
+    ob = bpy.data.objects.new(name, d); col.objects.link(ob)
+    ob.location = centroid + mathutils.Vector(direction) * (scene_radius * 3)
+    ob.rotation_euler = (centroid - ob.location).normalized().to_track_quat("-Z", "Y").to_euler()
+
+_sun("key",  (0.6, -1.0, 0.8), 3.2, (1.0, 0.96, 0.90))
+_sun("fill", (-0.9, -0.3, 0.4), 1.1, (0.92, 0.95, 1.0))
+_sun("rim",  (0.1, 1.0, 0.7),  2.0, (1.0, 0.98, 0.95))
+
+# ── Three-quarter perspective hero camera ────────────────────────────────────
+focal_mm = 50.0
+fov_half = math.atan(36.0 / (2.0 * focal_mm))
+standoff = max(scene_radius / (math.tan(fov_half) * 0.62), scene_radius * 1.5, 0.4)
+view_dir = mathutils.Vector((0.7, -1.0, 0.55)).normalized()
+cam_pos  = centroid + view_dir * standoff
+
+cam_data      = bpy.data.cameras.new("ModelCam")
+cam_data.lens = focal_mm
+cam_obj       = bpy.data.objects.new("ModelCam", cam_data)
+col.objects.link(cam_obj)
+scene.camera = cam_obj
+cam_obj.location = cam_pos
+look = (centroid - cam_pos).normalized()
+cam_obj.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
+
+bpy.ops.render.render(write_still=True)
+'''
+
+
 def _resolve_blender(blender_path: str) -> str:
     """Return a working Blender executable path or raise."""
     candidates = [blender_path, _MAC_BLENDER, "blender"]
@@ -993,6 +1138,36 @@ class BlenderRuntime:
         glb = self.output_dir / "wireframe.glb"
         result["wireframe_glb"] = str(glb) if glb.exists() else None
         return result
+
+    def render_model_view(
+        self,
+        mesh_assets: list[dict],
+        resolution: tuple[int, int] = (960, 960),
+        output_name: str = "model_beauty.png",
+    ) -> str | None:
+        """Render one shaded perspective 'beauty' view of the mesh assets, with
+        vertex colors displayed. Returns the PNG filesystem path, or None if
+        Blender was unavailable / produced no image.
+        """
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(self.output_dir / output_name)
+
+        payload = {
+            "output_path": output_path,
+            "resolution":  list(resolution),
+            "mesh_assets": mesh_assets or [],
+        }
+
+        script_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w")
+        try:
+            script_file.write(_MODEL_RENDER_SCRIPT)
+            script_file.flush()
+            script_file.close()
+            self._run_blender(script_file.name, json.dumps(payload))
+        finally:
+            os.unlink(script_file.name)
+
+        return output_path if Path(output_path).exists() else None
 
     def _generate_thumbnail(self, image_path: str, thumb_path: str) -> None:
         if not Path(image_path).exists():

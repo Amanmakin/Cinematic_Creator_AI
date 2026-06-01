@@ -3,7 +3,7 @@
 > Auto-maintained reference. Update this file whenever nodes, state fields, routing conditions,
 > schemas, routes, or infrastructure change. See `CLAUDE.md` for the update rule.
 >
-> Last synced: 2026-05-28 (mesh_generator uses uploaded reference image → TripoSR image→3D)
+> Last synced: 2026-06-01 (TripoSR bakes vertex colors `has_vertex_color=True`; `visual_generator` leads `model_renders` with a shaded mesh beauty render)
 
 ---
 
@@ -105,7 +105,7 @@
 | `generation_mode` | `str` (GenerationMode enum) | `wireframe` \| `model` \| `video` |
 | `previsualization` | `Previsualization \| None` | Wireframe previs renders |
 | `previsualization_feedback` | `str \| None` | User feedback on wireframe |
-| `model_renders` | `list[str] \| None` | URLs to 2D model renders |
+| `model_renders` | `list[str] \| None` | URLs shown in the model-approval overlay. For `object`/`landscape` subjects, index 0 is the shaded mesh beauty render (`/previs/.../model_<asset_id>.png`); remaining entries are generated layer `…/rgba` images (e.g. background) |
 | `model_feedback` | `str \| None` | User feedback on model renders |
 | `gltf_assembled_path` | `str \| None` | API URL path to assembled .glb |
 | `subject_class` | `Literal["object","landscape","abstract"] \| None` | Plan10 routing key (text→3D vs wireframe) |
@@ -150,7 +150,7 @@ failed
 | `creative_dispatcher` | `creative_dispatcher.py` | Pure Python | Translates DSL into image-only `CreativeIntent`s (runs after wireframe approval). Mesh intents come from `mesh_dispatcher` upstream; this node now only emits subject-image intents for `abstract` plus background intents |
 | `physical_validation` | `physical_validation.py` | Pure Python (zero LLM) | Strict geometry checks: focal length, camera-AABB collision, light sanity, duration cap |
 | `dsl_compiler` | `dsl_compiler.py` | Pure Python | Compiles validated DSL to Blender-executable form |
-| `visual_generator` | _(injected via `build_graph`)_ | Adapter call | Calls `HybridAdapter` / `ReplicateAdapter` for image generation |
+| `visual_generator` | _(injected via `api/orchestrator/creative_dispatch.make_visual_generator_node`)_ | Adapter call | Calls `HybridAdapter` / `ReplicateAdapter` for image generation (abstract subjects + background). For `object`/`landscape` subjects it additionally renders a shaded **beauty shot** of the hero mesh via `PrevisRenderer.render_model_beauty` (Blender EEVEE + 3-point SUN rig, TripoSR's baked vertex colors wired through a saturation boost into the Principled base color, `Standard` view transform) and **leads `model_renders`** with that `/previs/<pid>/model_<asset_id>.png` — the model-approval overlay then shows the actual textured model instead of only the background layer |
 | `gltf_assembler` | _(injected via `build_graph`)_ | Pure Python | Assembles glTF/glb from layer assets; sets `gltf_assembled_path` |
 | `subject_classifier` | `subject_classifier.py` | LLM (structured output) | Plan10. Labels prompt as `object` / `landscape` / `abstract`; sets `subject_class` |
 | `mesh_generator` | `mesh_generator.py` + `api/orchestrator/mesh_dispatch.py` | Adapter call | Plan10. Resolves mesh intents via `TextTo3DAdapter` (DALL-E+TripoSR or Shap-E) or `PolyHavenAdapter`. When `state.sample_image_urls` has an uploaded reference, `mesh_dispatch` loads it from disk and passes `reference_image` so `TextTo3DAdapter` reconstructs directly from the photo via TripoSR (image→3D) regardless of text strategy |
@@ -338,7 +338,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 |---|---|---|---|
 | `redis` | `redis:7-alpine` | 6379 | arq job queue + pub/sub |
 | `diffusers` | `./docker/diffusers` | 8001 | Local SD 1.5 / SDXL inference (Mac M-series, CPU) |
-| `triposr` | `./docker/triposr` | 8002 | Plan10. Image→3D mesh via TripoSR |
+| `triposr` | `./docker/triposr` | 8002 | Plan10. Image→3D mesh via TripoSR. Re-orients the mesh Z-up→Y-up (−90° about X) before export so the GLB is a spec-correct Y-up asset for three.js/Blender consumers |
 | `shap_e` | `./docker/shap_e` | 8003 | Plan10. Text→3D mesh via Shap-E (offline fallback) |
 
 ### Key environment variables
@@ -349,6 +349,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 | `DOCKER_SMALLER_MODEL` | `true` | `true` = SD 1.5, `false` = SDXL |
 | `DOCKER_DEVICE` | `cpu` | `cpu` for Mac M-series, `cuda` for GPU Linux |
 | `TRIPOSR_URL` | `http://localhost:8002` | TripoSR service base URL (Plan10) |
+| `TRIPOSR_ROT_X_DEG` | `-90` | Mesh up-axis fix applied in the TripoSR service: rotation (deg) about X to convert Z-up→Y-up. Set `0` to disable |
 | `SHAP_E_URL` | `http://localhost:8003` | Shap-E service base URL (Plan10) |
 | `POLY_HAVEN_API_URL` | `https://api.polyhaven.com` | Poly Haven public API (Plan10) |
 | `POLY_HAVEN_CACHE_DIR` | `data/poly_haven_cache` | Local glb/hdri cache (Plan10) |

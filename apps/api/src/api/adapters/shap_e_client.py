@@ -60,5 +60,11 @@ class ShapEClient:
             raise ProviderUnavailable(
                 f"Shap-E HTTP {exc.response.status_code}: {exc.response.text[:200]}"
             ) from exc
+        except httpx.HTTPError as exc:
+            # RemoteProtocolError / ReadError / NetworkError — the container dropped
+            # the connection mid-request, typically an OOM SIGKILL during inference.
+            raise ProviderUnavailable(
+                f"Shap-E connection dropped (server likely crashed/OOM): {exc}"
+            ) from exc
 
         return _parse_mesh_multipart(resp.content, resp.headers.get("content-type", ""))

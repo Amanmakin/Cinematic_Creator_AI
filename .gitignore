@@ -108,3 +108,9 @@ data/
 # ─── Playwright ───────────────────────────────────────────────────────────────
 apps/web/playwright-report/
 apps/web/test-results/
+
+# ─── Scratch / throwaway verification artifacts ───────────────────────────────
+.tmp_*/
+.tmp_*
+*.tmp
+scratch/

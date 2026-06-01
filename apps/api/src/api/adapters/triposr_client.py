@@ -59,6 +59,13 @@ class TripoSRClient:
             raise ProviderUnavailable(
                 f"TripoSR HTTP {exc.response.status_code}: {exc.response.text[:200]}"
             ) from exc
+        except httpx.HTTPError as exc:
+            # RemoteProtocolError / ReadError / NetworkError — the container dropped
+            # the connection mid-request, typically an OOM SIGKILL during inference.
+            # Map it like the others so the adapter can fall back instead of failing hard.
+            raise ProviderUnavailable(
+                f"TripoSR connection dropped (server likely crashed/OOM): {exc}"
+            ) from exc
 
         return _parse_mesh_multipart(resp.content, resp.headers.get("content-type", ""))
 
