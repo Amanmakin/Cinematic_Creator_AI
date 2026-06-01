@@ -16,7 +16,6 @@ ExecutionStage = Literal[
     "idle",
     "intent_validated",
     "awaiting_human_approval",
-    "speculative_batching",
     "semantic_lock_applied",
     "scene_graph_generated",
     # Plan9 previsualization stages
@@ -90,7 +89,6 @@ class AgentState(BaseModel):
     ambiguity_score: float = 0.0
     semantic_locks: list[SemanticLock] = Field(default_factory=list)
     scene_graph: BlenderDsl | None = None
-    speculative_variants: list[BlenderDsl] = Field(default_factory=list)
     validation_findings: list[ValidationFinding] = Field(default_factory=list)
     execution_status: ExecutionStage = "idle"
     retry_count: int = 0

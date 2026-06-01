@@ -35,13 +35,6 @@ const STAGE_CONFIG: Record<ExecutionStage, StageConfig> = {
     step: 1,
     emoji: "👁️",
   },
-  speculative_batching: {
-    label: "Exploring Variants",
-    description: "Running parallel interpretations of your vision",
-    type: "progress",
-    step: 2,
-    emoji: "✨",
-  },
   semantic_lock_applied: {
     label: "Locking Creative Elements",
     description: "Pinning your approved choices before generation begins",
@@ -301,7 +294,6 @@ const APPROVAL_NEXT_STAGE: Partial<Record<ExecutionStage, ExecutionStage>> = {
   previsualization_generated: "previsualization_approved",
   model_generated: "model_approved",
   awaiting_human_approval: "intent_validated",
-  speculative_batching: "scene_graph_generated",
 };
 
 // ── Main overlay ─────────────────────────────────────────────────────────────

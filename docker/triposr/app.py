@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="TripoSR image→3D service")
 
 DEVICE = os.getenv("DEVICE", "cpu")
+# Marching-cubes grid resolution for mesh extraction. The TripoSR default (256)
+# peaks well above an 8 GB Docker VM on CPU and gets SIGKILLed; 128 keeps the
+# memory peak safe while staying detailed enough for previs. Override via env.
+MC_RESOLUTION = int(os.getenv("MC_RESOLUTION", "128"))
 _MODEL: Any | None = None
 _MODEL_LOCK = asyncio.Lock()
 
@@ -119,7 +123,7 @@ def _infer(img: Image.Image) -> tuple[bytes, dict[str, float]]:
 
     with tempfile.TemporaryDirectory() as tmp:
         scene_codes = model([proc], device=DEVICE)
-        meshes = model.extract_mesh(scene_codes, has_vertex_color=False)
+        meshes = model.extract_mesh(scene_codes, has_vertex_color=False, resolution=MC_RESOLUTION)
         tri = meshes[0]
         bounds = _bounds_from_mesh(tri)
         glb_path = os.path.join(tmp, "out.glb")

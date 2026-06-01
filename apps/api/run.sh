@@ -1,1 +1,4 @@
-uv run uvicorn api.main:app --reload --port 8000
+uv run uvicorn api.main:app --reload \
+  --reload-dir src \
+  --reload-dir ../orchestrator/src \
+  --port 8000

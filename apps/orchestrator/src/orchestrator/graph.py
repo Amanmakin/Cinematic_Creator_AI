@@ -17,7 +17,6 @@ from orchestrator.nodes import (
     physical_validation_node,
     scene_graph_generator_node,
     semantic_locker_node,
-    speculative_batcher_node,
     subject_classifier_node,
     wireframe_previs_generator_node,
 )
@@ -54,7 +53,6 @@ def route_after_model(state: AgentState) -> str:
 def build_graph(
     *,
     checkpointer: MemorySaver | None = None,
-    interrupt_after_speculative: bool = True,
     visual_generator_node: Callable[[AgentState], dict] | None = None,
     gltf_assembler_node: Callable[[AgentState], dict] | None = None,
     mesh_generator_node: Callable[[AgentState], dict] | None = None,
@@ -82,8 +80,6 @@ def build_graph(
     if gltf_assembler_node is not None:
         g.add_node("gltf_assembler", gltf_assembler_node)
 
-    g.add_node("speculative_batcher", speculative_batcher_node)
-
     g.set_entry_point("intent_validator")
 
     g.add_conditional_edges(
@@ -91,7 +87,6 @@ def build_graph(
         route_after_intent,
         {
             "human_approval": END,
-            "speculative": "speculative_batcher",
             "proceed": "subject_classifier",
             "fail": END,
         },
@@ -166,13 +161,9 @@ def build_graph(
     else:
         g.add_edge("dsl_compiler", END)
 
-    g.add_edge("speculative_batcher", END)
-
-    interrupt_after = ["speculative_batcher", "wireframe_previs_generator"]
+    interrupt_after = ["wireframe_previs_generator"]
     if visual_generator_node is not None:
         interrupt_after.append("visual_generator")
-    if not interrupt_after_speculative:
-        interrupt_after = [n for n in interrupt_after if n != "speculative_batcher"]
 
     return g.compile(
         checkpointer=checkpointer or MemorySaver(),

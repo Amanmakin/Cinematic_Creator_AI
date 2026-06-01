@@ -29,7 +29,12 @@ class MeshAdapter(Protocol):
     """Async callable that resolves one mesh intent into a MeshAsset."""
 
     async def __call__(
-        self, intent: CreativeIntent, *, project_id: str, subject_class: str
+        self,
+        intent: CreativeIntent,
+        *,
+        project_id: str,
+        subject_class: str,
+        sample_image_urls: list[str],
     ) -> MeshAsset | None: ...
 
 
@@ -55,6 +60,7 @@ def make_mesh_generator_node(adapter: MeshAdapter) -> Callable[[AgentState], Awa
                         intent,
                         project_id=state.project_id,
                         subject_class=state.subject_class or "object",
+                        sample_image_urls=list(state.sample_image_urls),
                     )
                 except Exception as exc:  # noqa: BLE001 — adapter contract: bubble as failure event
                     log.exception("mesh_generator adapter raised")

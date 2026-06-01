@@ -49,9 +49,6 @@ def _load_fixture(schema_name: str) -> Any | None:
         if schema_name == "BlenderDsl":
             from orchestrator.schemas.dsl import BlenderDsl
             return BlenderDsl.model_validate(raw)
-        if schema_name == "_SpeculativeBatch":
-            from orchestrator.nodes.speculative_batcher import _SpeculativeBatch
-            return _SpeculativeBatch.model_validate(raw)
         if schema_name == "WireframeGeometry":
             from orchestrator.schemas.wire_geometry import WireframeGeometry
             return WireframeGeometry.model_validate(raw)
@@ -136,9 +133,6 @@ class _StructuredChain:
                 parsed = _wooden_chair_intent()
             elif schema_name == "BlenderDsl":
                 parsed = _wooden_chair_dsl()
-            elif schema_name == "_SpeculativeBatch":
-                from orchestrator.nodes.speculative_batcher import _SpeculativeBatch
-                parsed = _SpeculativeBatch(variants=[_wooden_chair_dsl(), _wooden_chair_dsl(), _wooden_chair_dsl()])
             elif schema_name == "WireframeGeometry":
                 # Return None so the renderer falls back to subject AABBs in dummy mode.
                 parsed = None

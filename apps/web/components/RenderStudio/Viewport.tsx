@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Center } from "@react-three/drei";
 import * as THREE from "three";
@@ -39,8 +39,22 @@ export default function Viewport({ glbUrl }: ViewportProps) {
     (agentState?.semantic_locks ?? []).map((l) => l.path),
   );
 
-  const wireGlbPath = agentState?.previsualization?.wireframe_glb_path;
-  const wireGlbUrl = wireGlbPath ? previsUrl(wireGlbPath) : null;
+  // The previsualization object is replaced on every pipeline run, but the GLB
+  // URL is stable — drei's useGLTF caches by URL, so a regenerated mesh would
+  // keep showing the previous one. Bump a token whenever previs changes to force
+  // a fresh fetch.
+  const previs = agentState?.previsualization;
+  const prevPrevisRef = useRef(previs);
+  const cacheBustRef = useRef(0);
+  if (previs !== prevPrevisRef.current) {
+    prevPrevisRef.current = previs;
+    cacheBustRef.current += 1;
+  }
+
+  const wireGlbPath = previs?.wireframe_glb_path;
+  const wireGlbUrl = wireGlbPath
+    ? `${previsUrl(wireGlbPath)}?cb=${cacheBustRef.current}`
+    : null;
 
   const modelRenders = agentState?.model_renders ?? [];
   // Show 2-D model renders only while waiting for model approval — once the

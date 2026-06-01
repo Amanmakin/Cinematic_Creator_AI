@@ -64,7 +64,10 @@
       "Read(//tmp/previs_car/**)",
       "Read(//private/tmp/previs_car/**)",
       "Read(//tmp/**)",
-      "Read(//private/tmp/**)"
+      "Read(//private/tmp/**)",
+      "Bash(rm -f /tmp/previs_test/*)",
+      "Bash(python3 /tmp/run_sheet.py)",
+      "Bash(python3 -)"
     ]
   }
 }

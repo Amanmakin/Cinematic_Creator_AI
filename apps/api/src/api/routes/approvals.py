@@ -16,10 +16,9 @@ router = APIRouter()
 
 class ApprovalRequest(BaseModel):
     decision: Literal[
-        # Legacy speculative / human-approval decisions
+        # Human-approval decisions
         "accept",
         "modify",
-        "select_variant",
         "reject",
         # Plan9 wireframe decisions
         "previsualization_approve",
@@ -33,7 +32,6 @@ class ApprovalRequest(BaseModel):
         "model_reject",
     ]
     modified_prompt: str | None = None
-    variant_index: int | None = None
     rejection_reason: str | None = None
     notes: str | None = None  # revision notes for modify decisions
 
@@ -54,7 +52,6 @@ async def approve(project_id: str, body: ApprovalRequest):
     # so gate on execution_status instead of snapshot.next.
     current_status = snapshot.values.get("execution_status", "idle")
     _approvable = {
-        "speculative_batching",
         "awaiting_human_approval",
         "previsualization_generated",
         "previsualization_feedback",
@@ -65,7 +62,7 @@ async def approve(project_id: str, body: ApprovalRequest):
         raise HTTPException(status_code=409, detail="No pending interrupt for this project")
 
     # ------------------------------------------------------------------
-    # Legacy decisions (speculative / human-approval phase)
+    # Human-approval phase
     # ------------------------------------------------------------------
     if body.decision == "accept":
         # Force ambiguity_score to 0 so route_after_intent returns "proceed", not "human_approval" again
@@ -82,28 +79,6 @@ async def approve(project_id: str, body: ApprovalRequest):
             config,
             {"user_prompt": body.modified_prompt, "execution_status": "intent_validated", "ambiguity_score": 0.0},
             as_node="intent_validator",
-        )
-
-    elif body.decision == "select_variant":
-        if body.variant_index is None:
-            raise HTTPException(status_code=422, detail="variant_index required for 'select_variant' decision")
-        current_values = snapshot.values
-        variants = current_values.get("speculative_variants", [])
-        if body.variant_index >= len(variants):
-            raise HTTPException(status_code=422, detail="variant_index out of range")
-        chosen = variants[body.variant_index]
-        # Update as scene_graph_generator so the graph resumes along the edge
-        # scene_graph_generator → wireframe_previs_generator (not speculative_batcher → END).
-        # generation_mode_parser is skipped in the speculative path, so set it explicitly.
-        graph.update_state(
-            config,
-            {
-                "scene_graph": chosen,
-                "speculative_variants": [],
-                "execution_status": "scene_graph_generated",
-                "generation_mode": "video",
-            },
-            as_node="scene_graph_generator",
         )
 
     elif body.decision == "reject":

@@ -10,7 +10,7 @@ Build a highly structured, AI-native cinematic production pipeline that transfor
 
 1. **Constrained Execution.** The system initially focuses on a sharply constrained workflow (10–15s commercial advertising content for social media) to guarantee reliability before scaling complexity.
 2. **Deterministic State.** Every stage is stateful, using an event-sourced DAG for instant reversibility without re-reasoning LLM costs.
-3. **Adaptive Approvals & Predictive Batching.** The system batches decisions and uses reversible generation to maintain creative momentum. It asks for hard approvals before expensive GPU executions, while running low-cost, low-res speculative batches to resolve ambiguity early.
+3. **Adaptive Approvals.** The system uses reversible generation to maintain creative momentum, asking for hard approvals before expensive GPU executions (wireframe + model gates).
 4. **Failure-First Design.** Built-in partial pipeline recovery, automatic fallback for invalid JSONs, and strict render budgeting prevent cascade failures and cost blowouts.
 
 ## Core User Flow
@@ -18,7 +18,7 @@ Build a highly structured, AI-native cinematic production pipeline that transfor
 1. User provides a prompt (e.g., "A modern, cinematic ad for a new kurti collection, slow-motion, warm tones").
 2. Central Orchestrator parses intent and validates against cinematic heuristics.
 3. Structured scene plan and storyboard wireframes generated.
-4. **Adaptive Approval Checkpoint.** Pauses on high semantic ambiguity. On medium ambiguity, triggers predictive speculative batching (2–3 concurrent low-res variations). On low ambiguity, proceeds.
+4. **Adaptive Approval Checkpoint.** Pauses on high semantic ambiguity (`ambiguity_score > 0.8`) for human review; otherwise proceeds to the downstream wireframe gate.
 5. Visual generation via the Creative Abstraction Layer (translating intent into provider-specific payloads).
 6. Scene composition via Unified Scene Graph (frontend/backend parity).
 7. Execution via strictly typed Blender DSL.
@@ -36,9 +36,8 @@ Graph nodes:
 - **SemanticLocker.** Pure Python. Compares current intent to prior checkpoint and emits `SemanticLock`s to freeze stable elements (garment, character) across iterations.
 - **SceneGraphGenerator.** Structured-output LLM call producing the typed `BlenderDsl`. Lock violations trigger a capped retry edge.
 - **PhysicalValidationEngine.** Pure Python (zero LLM). Strict geometric/spatial checks — focal length, camera-vs-AABB collisions, light sanity, duration caps. Fails fast.
-- **SpeculativeBatcher.** Triggered on medium ambiguity; generates 2–3 alternative `BlenderDsl`s for user selection at a `human_approval` breakpoint.
 
-Conditional edges out of `IntentValidator` route to **human approval** (`score > 0.8`), **speculative batching** (`0.4 < score <= 0.8`), or **proceed**. Validation failures route back to the generator up to a strict retry limit, then terminate.
+Conditional edges out of `IntentValidator` route to **human approval** (`score > 0.8`) or **proceed**. Validation failures route back to the generator up to a strict retry limit, then terminate.
 
 ### 2. Creative Intent Abstraction Layer (Visual Stack)
 
@@ -52,7 +51,7 @@ Never binds directly to raw ComfyUI/ControlNet graphs.
 ### 3. Dedicated GPU & Render Orchestrator
 
 - Manages queue prioritization, cancellation, and concurrency isolation.
-- Implements token and compute budgeting (hard limits on retries and speculative execution).
+- Implements token and compute budgeting (hard limits on retries).
 - Handles failed-render rollbacks and stale-dependency invalidation.
 
 ### 4. Deterministic Execution & Synchronization Layer (Blender DSL)
@@ -123,7 +122,7 @@ Blender operates as a 2.5D cinematic virtual-production engine.
 | Semantic Locker | Plan1 | `apps/orchestrator/src/orchestrator/nodes/semantic_locker.py` |
 | Scene Graph Generator | Plan1 | `apps/orchestrator/src/orchestrator/nodes/scene_graph_generator.py` |
 | Physical Validation Engine | Plan1 (+ extended in Plan4) | `apps/orchestrator/src/orchestrator/nodes/physical_validation.py` |
-| Speculative Batcher + human-approval breakpoint | Plan1 | `apps/orchestrator/src/orchestrator/nodes/speculative_batcher.py`, `routing.py` |
+| Human-approval breakpoint | Plan1 | `apps/orchestrator/src/orchestrator/routing.py` |
 | FastAPI surface + Next.js workspace shell | Plan2 | `apps/api/src/api/main.py`, `apps/web/app/(workspace)/page.tsx` |
 | Creative Abstraction Layer | Plan3 | `apps/api/src/adapters/*` |
 | UAR (layered, content-addressed) | Plan3 | `apps/api/src/uar/store.py` |

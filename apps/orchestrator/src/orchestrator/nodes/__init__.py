@@ -7,7 +7,6 @@ from orchestrator.nodes.mesh_generator import make_mesh_generator_node
 from orchestrator.nodes.physical_validation import physical_validation_node
 from orchestrator.nodes.scene_graph_generator import scene_graph_generator_node
 from orchestrator.nodes.semantic_locker import semantic_locker_node
-from orchestrator.nodes.speculative_batcher import speculative_batcher_node
 from orchestrator.nodes.subject_classifier import subject_classifier_node
 from orchestrator.nodes.wireframe_previs_generator import wireframe_previs_generator_node
 
@@ -20,7 +19,6 @@ __all__ = [
     "creative_dispatcher_node",
     "physical_validation_node",
     "dsl_compiler_node",
-    "speculative_batcher_node",
     "subject_classifier_node",
     "make_mesh_generator_node",
     "mesh_dispatcher_node",

@@ -8,7 +8,6 @@
  *   previsualization_generated → Approve (wireframe)
  *   model_generated            → Approve (2D/2.5D renders)
  *   awaiting_human_approval    → Accept  (high-ambiguity fallback)
- *   speculative_batching       → Variant A (medium-ambiguity fallback)
  *
  * It then asserts the pipeline reaches "completed" or "render_completed"
  * with a valid scene graph, satisfying all plan phases (Plans 1–9).
@@ -39,7 +38,6 @@ const TERMINAL_STATUSES = [
 
 const APPROVAL_GATES = [
   "awaiting_human_approval",
-  "speculative_batching",
   "previsualization_generated",
   "model_generated",
 ] as const;
@@ -103,7 +101,6 @@ async function waitForStatusToLeave(
  * previsualization_generated  → click "Approve" in the bottom-bar wireframe panel
  * model_generated             → click "Approve" in the bottom-bar model panel
  * awaiting_human_approval     → click "Accept" in the centered modal
- * speculative_batching        → click "Variant A" card in the centered modal
  */
 async function handleApprovalGate(page: Page, status: ApprovalGate): Promise<void> {
   switch (status) {
@@ -124,14 +121,6 @@ async function handleApprovalGate(page: Page, status: ApprovalGate): Promise<voi
     case "awaiting_human_approval": {
       // Modal: "Accept" button (no custom prompt, accept as-is)
       const btn = page.getByRole("button", { name: "Accept" });
-      await expect(btn).toBeEnabled({ timeout: 15_000 });
-      await btn.click();
-      break;
-    }
-
-    case "speculative_batching": {
-      // Pick the first generated variant
-      const btn = page.locator("button", { hasText: "Variant A" });
       await expect(btn).toBeEnabled({ timeout: 15_000 });
       await btn.click();
       break;

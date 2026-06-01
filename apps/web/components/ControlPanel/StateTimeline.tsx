@@ -6,7 +6,6 @@ const STATUS_COLOR: Record<string, string> = {
   idle: "bg-slate-600",
   intent_validated: "bg-blue-500",
   awaiting_human_approval: "bg-yellow-500",
-  speculative_batching: "bg-purple-500",
   semantic_lock_applied: "bg-cyan-500",
   scene_graph_generated: "bg-indigo-500",
   physical_validation_failed: "bg-red-500",

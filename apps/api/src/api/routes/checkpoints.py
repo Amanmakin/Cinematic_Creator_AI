@@ -12,7 +12,6 @@ _SCENE_STATUSES = {
     "physical_validation_failed",
     "completed",
     "awaiting_human_approval",
-    "speculative_batching",
 }
 
 

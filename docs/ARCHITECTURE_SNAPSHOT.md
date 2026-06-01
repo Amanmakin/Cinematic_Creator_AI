@@ -3,7 +3,7 @@
 > Auto-maintained reference. Update this file whenever nodes, state fields, routing conditions,
 > schemas, routes, or infrastructure change. See `CLAUDE.md` for the update rule.
 >
-> Last synced: 2026-05-22 (Plan10B — mesh-first wireframe previs)
+> Last synced: 2026-05-28 (mesh_generator uses uploaded reference image → TripoSR image→3D)
 
 ---
 
@@ -95,7 +95,6 @@
 | `ambiguity_score` | `float` | 0.0–1.0 score driving routing |
 | `semantic_locks` | `list[SemanticLock]` | Frozen elements across iterations |
 | `scene_graph` | `BlenderDsl \| None` | Current validated Blender DSL |
-| `speculative_variants` | `list[BlenderDsl]` | 2–3 low-res alternatives (speculative batch) |
 | `validation_findings` | `list[ValidationFinding]` | Physical validation errors/warnings |
 | `execution_status` | `ExecutionStage` | Current pipeline stage |
 | `retry_count` | `int` | Validation retry counter |
@@ -117,7 +116,6 @@
 
 ```
 idle → intent_validated → awaiting_human_approval
-                        → speculative_batching
                         → semantic_lock_applied → scene_graph_generated
                              → previsualization_generated
                                ├─ previsualization_approved
@@ -152,11 +150,10 @@ failed
 | `creative_dispatcher` | `creative_dispatcher.py` | Pure Python | Translates DSL into image-only `CreativeIntent`s (runs after wireframe approval). Mesh intents come from `mesh_dispatcher` upstream; this node now only emits subject-image intents for `abstract` plus background intents |
 | `physical_validation` | `physical_validation.py` | Pure Python (zero LLM) | Strict geometry checks: focal length, camera-AABB collision, light sanity, duration cap |
 | `dsl_compiler` | `dsl_compiler.py` | Pure Python | Compiles validated DSL to Blender-executable form |
-| `speculative_batcher` | `speculative_batcher.py` | LLM | Generates 2–3 `BlenderDsl` variants on medium ambiguity |
 | `visual_generator` | _(injected via `build_graph`)_ | Adapter call | Calls `HybridAdapter` / `ReplicateAdapter` for image generation |
 | `gltf_assembler` | _(injected via `build_graph`)_ | Pure Python | Assembles glTF/glb from layer assets; sets `gltf_assembled_path` |
 | `subject_classifier` | `subject_classifier.py` | LLM (structured output) | Plan10. Labels prompt as `object` / `landscape` / `abstract`; sets `subject_class` |
-| `mesh_generator` | `mesh_generator.py` + `api/orchestrator/mesh_dispatch.py` | Adapter call | Plan10. Resolves mesh intents via `TextTo3DAdapter` (DALL-E+TripoSR or Shap-E) or `PolyHavenAdapter` |
+| `mesh_generator` | `mesh_generator.py` + `api/orchestrator/mesh_dispatch.py` | Adapter call | Plan10. Resolves mesh intents via `TextTo3DAdapter` (DALL-E+TripoSR or Shap-E) or `PolyHavenAdapter`. When `state.sample_image_urls` has an uploaded reference, `mesh_dispatch` loads it from disk and passes `reference_image` so `TextTo3DAdapter` reconstructs directly from the photo via TripoSR (image→3D) regardless of text strategy |
 
 ---
 
@@ -168,8 +165,7 @@ failed
 |---|---|
 | `execution_status == "failed"` | `END` (fail) |
 | `ambiguity_score > 0.8` | `END` (human_approval interrupt) |
-| `0.4 < ambiguity_score <= 0.8` | `speculative_batcher` |
-| `ambiguity_score <= 0.4` | `subject_classifier` → `generation_mode_parser` (proceed) |
+| `ambiguity_score <= 0.8` | `subject_classifier` → `generation_mode_parser` (proceed) |
 
 ### After `mesh_dispatcher` (Plan10B)
 
@@ -212,7 +208,6 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 
 ### Interrupt points (human-in-the-loop)
 
-- `speculative_batcher` — presents variants; user selects or rejects
 - `wireframe_previs_generator` — user approves / gives feedback / rejects wireframe
 - `visual_generator` (when wired) — user approves / gives feedback / rejects model renders
 
@@ -262,7 +257,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 | `HybridAdapter` | `hybrid_adapter.py` | Local-first (diffusers Docker) with Replicate fallback (Plan8) |
 | `LocalDockerAdapter` | `local_docker_adapter.py` | Calls local diffusers service on `localhost:8001` |
 | `ComfyUIAdapter` | `comfyui_adapter.py` | Translates `CreativeIntent` to ComfyUI workflow JSON |
-| `TextTo3DAdapter` | `text_to_3d_adapter.py` | Plan10. DALL-E 3 reference → TripoSR (default) with Shap-E fallback |
+| `TextTo3DAdapter` | `text_to_3d_adapter.py` | Plan10. `generate(subject, reference_image=…)`: a user-uploaded `reference_image` goes straight to TripoSR (image→3D); else DALL-E/`gpt-image-1` reference → TripoSR, with Shap-E text→3D fallback |
 | `TripoSRClient` | `triposr_client.py` | Plan10. HTTP client for the TripoSR Docker service on :8002 |
 | `ShapEClient` | `shap_e_client.py` | Plan10. HTTP client for the Shap-E Docker service on :8003 |
 | `PolyHavenAdapter` | `poly_haven_adapter.py` | Plan10. Text → Poly Haven glb landscape asset, locally cached |
@@ -302,7 +297,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 
 | Module | Description |
 |---|---|
-| `budget.py` | Token + compute budget ledger; hard limits on retries / speculative spend |
+| `budget.py` | Token + compute budget ledger; hard limits on retries |
 | `creative_dispatch.py` | Maps `BlenderDsl` → `CreativeIntent` list |
 | `gltf_assembly.py` | Assembles layer assets into a single glTF/glb |
 | `ot.py` | Operational Transformations — transactional scene graph mutations |
@@ -366,7 +361,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 - **Local-first, no local GPU.** Visual generation → Replicate fallback or local diffusers (CPU).
 - **OpenAI only for typed structured JSON** (intent, scene graph, summaries). Never for image/video/raw bpy.
 - **Max retries = 1** on physical validation failures before terminal fail.
-- **Ambiguity thresholds**: human approval > 0.8 / speculative 0.4–0.8 / proceed ≤ 0.4.
+- **Ambiguity threshold**: human approval > 0.8 / proceed ≤ 0.8 (downstream wireframe gate handles further review).
 - **Generation modes**: `wireframe` → `model` → `video`; never auto-advance across a boundary.
 - **glTF/glb** is the universal exchange format ensuring spatial parity between Three.js and Blender.
 - **MemorySaver** (in-process) / **SqliteSaver** (persistent) for LangGraph time-travel.

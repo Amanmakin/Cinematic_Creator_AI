@@ -78,6 +78,7 @@ class TextTo3DAdapter:
         *,
         seed: int | None = None,
         strategy: str | None = None,
+        reference_image: bytes | None = None,
     ) -> TextTo3DResult:
         if not subject.strip():
             raise ProviderUnavailable("text_to_3d requires a non-empty subject")
@@ -85,6 +86,19 @@ class TextTo3DAdapter:
         active = strategy or self._strategy
         if active not in _STRATEGIES:
             raise ValueError(f"Unknown strategy {active!r}. Choose from {_STRATEGIES}")
+
+        # A user-supplied reference image is the strongest signal — reconstruct
+        # directly from it via TripoSR (image→3D), skipping text→image generation.
+        # On failure we fall through to the text-based pipeline below.
+        if reference_image is not None:
+            try:
+                return await self._triposr_from_image(reference_image, subject)
+            except ProviderUnavailable as exc:
+                logger.warning(
+                    "TripoSR reconstruction from reference image failed (%s); "
+                    "falling back to text pipeline",
+                    exc,
+                )
 
         if active == "local_only":
             return await self._shap_e_only(subject, seed=seed)
@@ -114,6 +128,10 @@ class TextTo3DAdapter:
             source="triposr",
             reference_image_url=None,
         )
+
+    async def _triposr_from_image(self, image_bytes: bytes, subject: str) -> TextTo3DResult:
+        glb, bounds = await self._triposr.generate(image_bytes, filename=f"{_slug(subject)}.png")
+        return TextTo3DResult(glb_bytes=glb, bounds=bounds, source="triposr")
 
     async def _shap_e_only(self, subject: str, *, seed: int | None = None) -> TextTo3DResult:
         glb, bounds = await self._shap_e.generate(subject, seed=seed)

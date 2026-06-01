@@ -86,30 +86,3 @@ def test_intent_failure_short_circuits(fake_llm, canon) -> None:
     assert any("duration_exceeds_canon" in m for m in final_state.error_log)
 
 
-def test_speculative_branch_runs_batcher_then_pauses(
-    fake_llm, canon, low_ambiguity_intent
-) -> None:
-    """Medium-ambiguity intent routes to the speculative batcher, which runs
-    and then pauses (interrupt_after) so the user can pick a variant."""
-    from orchestrator.nodes.speculative_batcher import _SpeculativeBatch
-
-    medium = low_ambiguity_intent.model_copy(update={
-        "ambiguity_hints": low_ambiguity_intent.ambiguity_hints.model_copy(
-            update={"confidence": 0.0, "underspecified_fields": ["lighting"]}
-        )
-    })
-    fake_llm.enqueue(IntentSpec, medium)
-    batch = _SpeculativeBatch(variants=[make_valid_dsl(), make_valid_dsl(), make_valid_dsl()])
-    fake_llm.enqueue(_SpeculativeBatch, batch)
-
-    graph = build_graph(interrupt_after_speculative=True)
-    config = {"configurable": {"thread_id": "t-spec"}}
-    graph.invoke(
-        AgentState(user_prompt="prompt", project_canon=canon),
-        config=config,
-    )
-
-    snapshot = graph.get_state(config)
-    # Batcher ran and produced variants; graph is now paused after it.
-    assert len(snapshot.values.get("speculative_variants", [])) == 3
-    assert snapshot.values.get("execution_status") == "speculative_batching"

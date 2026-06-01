@@ -35,7 +35,6 @@ export default function WorkspacePage() {
 
   const needsApproval =
     agentState?.execution_status === "awaiting_human_approval" ||
-    agentState?.execution_status === "speculative_batching" ||
     agentState?.execution_status === "previsualization_generated" ||
     agentState?.execution_status === "model_generated";
 

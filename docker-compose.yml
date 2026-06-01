@@ -56,6 +56,7 @@ services:
       - DEVICE=${DOCKER_DEVICE:-cpu}
     volumes:
       - ./docker/models:/root/.cache/huggingface
+      - ./docker/shap_e/model_cache:/app/shap_e_model_cache
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

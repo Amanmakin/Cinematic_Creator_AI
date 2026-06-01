@@ -9,16 +9,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # CPU-only torch on Mac M-series; override base + add CUDA in compose for GPU.
+# Only install our server-side deps here; transformers/tokenizers/etc. are
+# pinned by TripoSR's own requirements.txt below — preinstalling them causes
+# pip to backtrack endlessly resolving conflicts.
 RUN pip install --no-cache-dir \
     torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
-    fastapi uvicorn[standard] python-multipart pillow numpy \
-    transformers diffusers accelerate safetensors trimesh \
-    rembg onnxruntime einops omegaconf
+    fastapi uvicorn[standard] python-multipart onnxruntime
 
-# TripoSR source — installed from the official repo at build time.
+# TripoSR source — installed from the official repo at build time. We strip:
+#   - gradio/gradio-client: container serves via FastAPI (app.py); loose pins
+#     also conflict with TripoSR's pinned transformers==4.35.0.
+#   - xatlas/moderngl: needed only for UV unwrap + GL preview; both fail to
+#     build on slim images (need X11/GL headers). app.py exports GLB via
+#     trimesh without UVs, so neither is required.
 RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git /opt/TripoSR && \
-    pip install --no-cache-dir -r /opt/TripoSR/requirements.txt
+    grep -v -E '^(gradio|gradio-client|xatlas|moderngl)' /opt/TripoSR/requirements.txt > /tmp/triposr-req.txt && \
+    pip install --no-cache-dir -r /tmp/triposr-req.txt
 ENV PYTHONPATH=/opt/TripoSR
 
 # torchmcubes is required by TripoSR's marching-cubes extractor. On CPU-only

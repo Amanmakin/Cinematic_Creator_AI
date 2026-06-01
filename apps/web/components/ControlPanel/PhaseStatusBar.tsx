@@ -15,7 +15,6 @@ const PHASE_INFO: Record<ExecutionStage, PhaseInfo> = {
   idle:                        { label: "Ready",                     emoji: "🎬", color: "text-zinc-300",   bg: "bg-zinc-800/60",   dot: "bg-zinc-400" },
   intent_validated:            { label: "Analyzing Intent",          emoji: "🧠", color: "text-indigo-300", bg: "bg-indigo-900/30", dot: "bg-indigo-400" },
   awaiting_human_approval:     { label: "Awaiting Your Review",      emoji: "👁️", color: "text-amber-300",  bg: "bg-amber-900/30",  dot: "bg-amber-400" },
-  speculative_batching:        { label: "Exploring Variants",        emoji: "✨", color: "text-indigo-300", bg: "bg-indigo-900/30", dot: "bg-indigo-400" },
   semantic_lock_applied:       { label: "Locking Elements",          emoji: "🔒", color: "text-teal-300",   bg: "bg-teal-900/30",   dot: "bg-teal-400" },
   scene_graph_generated:       { label: "Scene Composed",            emoji: "🎥", color: "text-blue-300",   bg: "bg-blue-900/30",   dot: "bg-blue-400" },
   previsualization_generated:  { label: "Previsualization Ready",    emoji: "🖼️", color: "text-amber-300",  bg: "bg-amber-900/30",  dot: "bg-amber-400" },

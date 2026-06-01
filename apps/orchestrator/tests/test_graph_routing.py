@@ -18,8 +18,10 @@ def test_route_after_intent_proceed(canon) -> None:
     assert route_after_intent(_state(canon, ambiguity_score=0.1)) == "proceed"
 
 
-def test_route_after_intent_speculative(canon) -> None:
-    assert route_after_intent(_state(canon, ambiguity_score=0.5)) == "speculative"
+def test_route_after_intent_medium_ambiguity_proceeds(canon) -> None:
+    """Medium-ambiguity (0.4–0.8) now flows straight through — the wireframe
+    gate downstream handles user review."""
+    assert route_after_intent(_state(canon, ambiguity_score=0.5)) == "proceed"
 
 
 def test_route_after_intent_human(canon) -> None:

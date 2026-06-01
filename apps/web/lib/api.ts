@@ -57,7 +57,6 @@ export async function submitRun(
 export type ApproveDecision =
   | "accept"
   | "modify"
-  | "select_variant"
   | "previsualization_approve"
   | "previsualization_proceed"
   | "previsualization_modify"
@@ -69,7 +68,6 @@ export type ApproveDecision =
 
 export interface ApproveOpts {
   modified_prompt?: string;
-  variant_index?: number;
   notes?: string;
 }
 

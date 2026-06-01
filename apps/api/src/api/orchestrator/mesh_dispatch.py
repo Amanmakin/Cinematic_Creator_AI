@@ -9,6 +9,9 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
+import os
+import re
+from pathlib import Path
 from typing import Callable
 
 import aiosqlite
@@ -24,6 +27,24 @@ from orchestrator.schemas.mesh_asset import MeshAsset
 from orchestrator.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+_SAMPLE_IMAGES_DIR = Path(os.environ.get("SAMPLE_IMAGES_DIR", "sample_images"))
+_SAMPLE_URL_RE = re.compile(r"^/sample-images/(.+)$")
+
+
+def _load_reference_image(sample_image_urls: list[str]) -> bytes | None:
+    """Read the first uploaded reference image off disk. TripoSR uses one image."""
+    for url in sample_image_urls:
+        m = _SAMPLE_URL_RE.match(url)
+        if not m:
+            continue
+        path = _SAMPLE_IMAGES_DIR / m.group(1)
+        if path.exists():
+            try:
+                return path.read_bytes()
+            except OSError as exc:
+                logger.warning("failed reading reference image %s: %s", path, exc)
+    return None
 
 # Image-gen strategy (per-project, set by GenerationSettingsPanel) → mesh strategy.
 # When the user opts out of OpenAI for images, they also opt out for the
@@ -71,11 +92,19 @@ def make_api_mesh_generator_node(
         *,
         project_id: str,
         subject_class: str,
+        sample_image_urls: list[str],
     ) -> MeshAsset | None:
-        # Re-use existing mesh for a locked target.
+        reference_image = _load_reference_image(sample_image_urls)
+
+        # Re-use the existing mesh for a locked target — but not when the user has
+        # since uploaded a reference image and the cached mesh wasn't built from one
+        # (source != "triposr"); in that case regenerate so the mesh reflects the
+        # reference instead of the earlier text-only result.
         if intent.target_path:
             existing = await uar.get_mesh_by_target(project_id, intent.target_path)
-            if existing is not None:
+            if existing is not None and not (
+                reference_image is not None and existing.source != "triposr"
+            ):
                 return existing
 
         prompt: str = intent.parameters.get("prompt") or ""
@@ -107,9 +136,16 @@ def make_api_mesh_generator_node(
                 )
 
         # Object (or landscape fallback): text_to_3d, honouring the project's
-        # image-gen strategy (local_only → Shap-E only, no OpenAI calls).
+        # image-gen strategy (local_only → Shap-E only, no OpenAI calls). When the
+        # user uploaded a reference image, feed it straight to TripoSR (image→3D)
+        # so the mesh matches the actual product rather than the bare prompt.
         mesh_strategy = await _project_mesh_strategy(project_id)
-        result = await text_to_3d.generate(prompt, seed=intent.seed, strategy=mesh_strategy)
+        result = await text_to_3d.generate(
+            prompt,
+            seed=intent.seed,
+            strategy=mesh_strategy,
+            reference_image=reference_image,
+        )
         return await uar.store_mesh(
             project_id=project_id,
             glb_bytes=result.glb_bytes,

@@ -266,8 +266,8 @@ def import_mesh_asset(m):
         return None
     imported = [o for o in bpy.data.objects if o not in pre]
     if not imported:
-        return None
-    # Pick the topmost mesh-bearing parent (or first imported obj)
+        return []
+    # Transform via the topmost parent so child meshes follow.
     root = next((o for o in imported if o.parent is None), imported[0])
     pos = m.get("position", [0.0, 0.0, 0.0])
     rot = m.get("rotation", [0.0, 0.0, 0.0])
@@ -275,20 +275,18 @@ def import_mesh_asset(m):
     root.location = (pos[0], pos[1], pos[2])
     root.rotation_euler = (math.radians(rot[0]), math.radians(rot[1]), math.radians(rot[2]))
     root.scale = (scl[0], scl[1], scl[2])
-    return root
+    return imported
 
-def mesh_asset_corners(m):
-    """Approximate world-space AABB corners from MeshAsset.bounds_m + transform."""
-    b = m.get("bounds_m") or {}
-    pos = m.get("position", [0.0, 0.0, 0.0])
-    scl = m.get("scale", [1.0, 1.0, 1.0])
-    try:
-        xs = [b["min_x"]*scl[0]+pos[0], b["max_x"]*scl[0]+pos[0]]
-        ys = [b["min_y"]*scl[1]+pos[1], b["max_y"]*scl[1]+pos[1]]
-        zs = [b["min_z"]*scl[2]+pos[2], b["max_z"]*scl[2]+pos[2]]
-        return [(x, y, z) for x in xs for y in ys for z in zs]
-    except KeyError:
-        return []
+def world_corners(objs):
+    """World-space bound-box corners of every MESH object."""
+    pts = []
+    for obj in objs:
+        if obj.type != "MESH":
+            continue
+        for corner in obj.bound_box:
+            wc = obj.matrix_world @ mathutils.Vector(corner)
+            pts.append((wc.x, wc.y, wc.z))
+    return pts
 
 primitives = data.get("primitives", [])
 subjs      = data.get("subjects", [])
@@ -299,11 +297,10 @@ mesh_objects = []
 # Mesh assets take precedence when present (Plan10 text→3D pipeline).
 if mesh_assets:
     for ma in mesh_assets:
-        obj = import_mesh_asset(ma)
-        if obj is not None:
-            mesh_objects.append(obj)
-        all_corners += mesh_asset_corners(ma)
-    # Fallback bounds if every import failed.
+        mesh_objects.extend(import_mesh_asset(ma))
+    # Derive bounds from the actual imported geometry (world space).
+    bpy.context.view_layer.update()
+    all_corners += world_corners(mesh_objects)
     if not all_corners:
         all_corners = [(-1.0, -1.0, 0.0), (1.0, 1.0, 1.0)]
 elif primitives:
@@ -342,6 +339,8 @@ else:
 bpy.context.view_layer.update()
 total_verts = total_edges = total_faces = total_tris = 0
 for obj in mesh_objects:
+    if obj.type != "MESH" or obj.data is None:
+        continue
     try:
         depsgraph = bpy.context.evaluated_depsgraph_get()
         eval_obj  = obj.evaluated_get(depsgraph)
@@ -729,7 +728,7 @@ def import_mesh_asset(m):
         return None
     imported = [o for o in bpy.data.objects if o not in pre]
     if not imported:
-        return None
+        return []
     root = next((o for o in imported if o.parent is None), imported[0])
     pos = m.get("position", [0.0, 0.0, 0.0])
     rot = m.get("rotation", [0.0, 0.0, 0.0])
@@ -737,19 +736,17 @@ def import_mesh_asset(m):
     root.location = (pos[0], pos[1], pos[2])
     root.rotation_euler = (math.radians(rot[0]), math.radians(rot[1]), math.radians(rot[2]))
     root.scale = (scl[0], scl[1], scl[2])
-    return root
+    return imported
 
-def mesh_asset_corners(m):
-    b = m.get("bounds_m") or {}
-    pos = m.get("position", [0.0, 0.0, 0.0])
-    scl = m.get("scale", [1.0, 1.0, 1.0])
-    try:
-        xs = [b["min_x"]*scl[0]+pos[0], b["max_x"]*scl[0]+pos[0]]
-        ys = [b["min_y"]*scl[1]+pos[1], b["max_y"]*scl[1]+pos[1]]
-        zs = [b["min_z"]*scl[2]+pos[2], b["max_z"]*scl[2]+pos[2]]
-        return [(x, y, z) for x in xs for y in ys for z in zs]
-    except KeyError:
-        return []
+def world_corners(objs):
+    pts = []
+    for obj in objs:
+        if obj.type != "MESH":
+            continue
+        for corner in obj.bound_box:
+            wc = obj.matrix_world @ mathutils.Vector(corner)
+            pts.append((wc.x, wc.y, wc.z))
+    return pts
 
 # ── Build scene from LLM primitives (or fall back to subject AABBs) ───────────
 primitives = data.get("primitives", [])
@@ -758,9 +755,11 @@ mesh_assets = data.get("mesh_assets", [])
 all_corners = []
 
 if mesh_assets:
+    imported_objs = []
     for ma in mesh_assets:
-        import_mesh_asset(ma)
-        all_corners += mesh_asset_corners(ma)
+        imported_objs.extend(import_mesh_asset(ma))
+    bpy.context.view_layer.update()
+    all_corners += world_corners(imported_objs)
     if not all_corners:
         all_corners = [(-1.0, -1.0, 0.0), (1.0, 1.0, 1.0)]
 elif primitives:

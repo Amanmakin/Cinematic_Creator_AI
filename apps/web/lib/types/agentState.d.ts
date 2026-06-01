@@ -9,7 +9,6 @@ export type ExecutionStage =
   | "idle"
   | "intent_validated"
   | "awaiting_human_approval"
-  | "speculative_batching"
   | "semantic_lock_applied"
   | "scene_graph_generated"
   | "previsualization_generated"
@@ -155,7 +154,6 @@ export interface AgentState {
   ambiguity_score: number;
   semantic_locks: SemanticLock[];
   scene_graph: BlenderDsl | null;
-  speculative_variants: BlenderDsl[];
   validation_findings: ValidationFinding[];
   execution_status: ExecutionStage;
   retry_count: number;
