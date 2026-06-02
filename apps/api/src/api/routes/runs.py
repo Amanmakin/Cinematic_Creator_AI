@@ -6,16 +6,23 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from api.graph_dep import get_graph
+from api.orchestrator.mesh_dispatch import _load_reference_image
 from api.persistence.projects_db import get_locks, get_project_canon, project_exists
+from api.reference_vision import analyze_reference_image
+from api.settings import settings
 from api.ws.broadcaster import _dumps, broadcast
 from orchestrator.schemas.canon import ProjectCanon
 from orchestrator.state import AgentState, SemanticLock
 
 router = APIRouter()
 
+# Caption used when an image is submitted with no prompt and the vision pass
+# can't name the object (no key / offline / parse failure).
+_FALLBACK_CAPTION = "the main object from the reference image"
+
 
 class RunRequest(BaseModel):
-    user_prompt: str
+    user_prompt: str = ""
     sample_image_urls: list[str] = []
 
 
@@ -32,9 +39,22 @@ async def start_run(project_id: str, body: RunRequest):
         for r in locks_rows
     ]
 
+    # Image-only submission: with no prompt, auto-caption the first reference
+    # image into a short subject that seeds the existing pipeline. The vision
+    # call is cached per image, so the adapter's later crop reuses this result.
+    effective_prompt = body.user_prompt
+    if not body.user_prompt.strip():
+        if not body.sample_image_urls:
+            raise HTTPException(status_code=400, detail="Provide a prompt or a reference image")
+        image_bytes = _load_reference_image(body.sample_image_urls)
+        if image_bytes is None:
+            raise HTTPException(status_code=400, detail="Provide a prompt or a reference image")
+        analysis = analyze_reference_image(image_bytes, settings.openai_api_key)
+        effective_prompt = analysis.label or _FALLBACK_CAPTION
+
     initial_state = AgentState(
         project_id=project_id,
-        user_prompt=body.user_prompt,
+        user_prompt=effective_prompt,
         project_canon=canon,
         semantic_locks=semantic_locks,
         sample_image_urls=body.sample_image_urls,

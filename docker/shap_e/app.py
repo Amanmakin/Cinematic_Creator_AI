@@ -14,6 +14,7 @@ import asyncio
 import io
 import json
 import logging
+import math
 import os
 import tempfile
 from typing import Any
@@ -28,6 +29,14 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Shap-E text→3D service")
 
 DEVICE = os.getenv("DEVICE", "cpu")
+# Shap-E (like TripoSR) decodes the mesh with the model's up-axis along +Z, but
+# the glTF spec and every consumer downstream (the three.js previs viewer,
+# Blender's glTF importer) treat +Y as up. Without correction the model loads
+# rotated 90° onto its back ("lying on the floor"). We re-orient Z-up → Y-up (a
+# -90° rotation about X maps +Z → +Y) before measuring bounds and exporting, so
+# the GLB is a spec-correct Y-up asset — matching docker/triposr/app.py. Set the
+# env var to 0 to skip if a future Shap-E build changes convention.
+UP_AXIS_ROT_X_DEG = float(os.getenv("SHAP_E_ROT_X_DEG", "-90"))
 _MODEL_BUNDLE: dict[str, Any] | None = None
 _MODEL_LOCK = asyncio.Lock()
 
@@ -128,6 +137,14 @@ def _infer(req: GenerateRequest) -> tuple[bytes, dict[str, float]]:
     faces = tri_mesh.faces  # type: ignore[attr-defined]
 
     m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+    # Re-orient Z-up (Shap-E) → Y-up (glTF standard) before measuring bounds +
+    # exporting, so bounds.json matches the exported geometry.
+    if UP_AXIS_ROT_X_DEG:
+        m.apply_transform(
+            trimesh.transformations.rotation_matrix(
+                math.radians(UP_AXIS_ROT_X_DEG), [1.0, 0.0, 0.0]
+            )
+        )
     mn, mx = m.bounds
     bounds = {
         "min_x": float(mn[0]), "min_y": float(mn[1]), "min_z": float(mn[2]),

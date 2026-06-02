@@ -37,7 +37,9 @@ export default function PromptComposer() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim() || !projectId) return;
+    // A prompt OR a reference image is enough — the backend auto-captions
+    // image-only submissions.
+    if ((!prompt.trim() && previews.length === 0) || !projectId) return;
 
     let imageUrls: string[] = [];
     if (previews.length > 0) {
@@ -65,7 +67,7 @@ export default function PromptComposer() {
       <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Prompt</label>
       <textarea
         className="bg-zinc-800 border border-zinc-600 rounded-md p-3 text-sm text-zinc-100 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500 placeholder:text-zinc-500 transition-all"
-        placeholder="Describe the cinematic scene…"
+        placeholder="Describe the cinematic scene… (or drop a reference image below and Generate)"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         disabled={busy}
@@ -156,7 +158,7 @@ export default function PromptComposer() {
 
       <button
         type="submit"
-        disabled={busy || !prompt.trim() || !projectId}
+        disabled={busy || !projectId || (!prompt.trim() && previews.length === 0)}
         className="bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white text-sm font-medium rounded-md py-2.5 transition-colors shadow-md shadow-indigo-500/20"
       >
         {uploading ? "Uploading…" : isRunning ? "Running…" : "Generate"}

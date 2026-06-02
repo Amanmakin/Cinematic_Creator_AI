@@ -3,7 +3,7 @@
 > Auto-maintained reference. Update this file whenever nodes, state fields, routing conditions,
 > schemas, routes, or infrastructure change. See `CLAUDE.md` for the update rule.
 >
-> Last synced: 2026-06-01 (TripoSR bakes vertex colors `has_vertex_color=True`; `visual_generator` leads `model_renders` with a shaded mesh beauty render)
+> Last synced: 2026-06-02 (Plan11: new `reference_vision` helper — one cached OpenAI-vision call per reference image returns a `label` (auto-caption) + normalized bbox (object crop). `runs.py` accepts image-only submissions (empty `user_prompt` → caption); `TextTo3DAdapter._triposr_from_image` crops the reference to the isolated product before TripoSR. No new node/state field — topology unchanged)
 
 ---
 
@@ -233,7 +233,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 | Module | Prefix | Purpose |
 |---|---|---|
 | `projects.py` | `/projects` | CRUD for projects |
-| `runs.py` | `/runs` | Stream LangGraph run state via SSE |
+| `runs.py` | `/runs` | Stream LangGraph run state via SSE. Plan11: `user_prompt` optional — image-only submissions auto-caption the first reference image via `reference_vision`; empty prompt **and** no image → 400 |
 | `approvals.py` | `/approvals` | Resume graph at human-approval breakpoints |
 | `checkpoints.py` | `/checkpoints` | Time-travel / rollback via MemorySaver |
 | `forks.py` | `/forks` | Fork a project state into a new branch |
@@ -257,10 +257,12 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 | `HybridAdapter` | `hybrid_adapter.py` | Local-first (diffusers Docker) with Replicate fallback (Plan8) |
 | `LocalDockerAdapter` | `local_docker_adapter.py` | Calls local diffusers service on `localhost:8001` |
 | `ComfyUIAdapter` | `comfyui_adapter.py` | Translates `CreativeIntent` to ComfyUI workflow JSON |
-| `TextTo3DAdapter` | `text_to_3d_adapter.py` | Plan10. `generate(subject, reference_image=…)`: a user-uploaded `reference_image` goes straight to TripoSR (image→3D); else DALL-E/`gpt-image-1` reference → TripoSR, with Shap-E text→3D fallback |
+| `TextTo3DAdapter` | `text_to_3d_adapter.py` | Plan10/11. `generate(subject, reference_image=…)`: a user-uploaded `reference_image` is first cropped to the isolated product (via `reference_vision`) then sent to TripoSR (image→3D); else DALL-E/`gpt-image-1` reference → TripoSR, with Shap-E text→3D fallback |
 | `TripoSRClient` | `triposr_client.py` | Plan10. HTTP client for the TripoSR Docker service on :8002 |
 | `ShapEClient` | `shap_e_client.py` | Plan10. HTTP client for the Shap-E Docker service on :8003 |
 | `PolyHavenAdapter` | `poly_haven_adapter.py` | Plan10. Text → Poly Haven glb landscape asset, locally cached |
+
+> **`reference_vision.py`** (`apps/api/src/api/`, Plan11) — `analyze_reference_image(bytes, key, hint=…)` runs one `gpt-4o` vision call (env `REFERENCE_VISION_MODEL`), cached on `sha256(bytes)`, returning a `ReferenceAnalysis(label, bbox_norm)`: a short caption + normalized object bbox (hands/people/background excluded). `crop_to_object(bytes, bbox)` PIL-crops to the padded box. Used by `runs.py` (caption) and `TextTo3DAdapter` (crop). All failures degrade to `(None, None)` → today's behavior.
 
 ---
 
@@ -339,7 +341,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 | `redis` | `redis:7-alpine` | 6379 | arq job queue + pub/sub |
 | `diffusers` | `./docker/diffusers` | 8001 | Local SD 1.5 / SDXL inference (Mac M-series, CPU) |
 | `triposr` | `./docker/triposr` | 8002 | Plan10. Image→3D mesh via TripoSR. Re-orients the mesh Z-up→Y-up (−90° about X) before export so the GLB is a spec-correct Y-up asset for three.js/Blender consumers |
-| `shap_e` | `./docker/shap_e` | 8003 | Plan10. Text→3D mesh via Shap-E (offline fallback) |
+| `shap_e` | `./docker/shap_e` | 8003 | Plan10. Text→3D mesh via Shap-E (offline fallback). Re-orients the mesh Z-up→Y-up (−90° about X) before export, matching the TripoSR service so the fallback path also yields a spec-correct Y-up GLB |
 
 ### Key environment variables
 
@@ -351,6 +353,7 @@ upstream by `mesh_dispatcher` + `mesh_generator` before wireframe previs.
 | `TRIPOSR_URL` | `http://localhost:8002` | TripoSR service base URL (Plan10) |
 | `TRIPOSR_ROT_X_DEG` | `-90` | Mesh up-axis fix applied in the TripoSR service: rotation (deg) about X to convert Z-up→Y-up. Set `0` to disable |
 | `SHAP_E_URL` | `http://localhost:8003` | Shap-E service base URL (Plan10) |
+| `SHAP_E_ROT_X_DEG` | `-90` | Mesh up-axis fix applied in the Shap-E service: rotation (deg) about X to convert Z-up→Y-up. Set `0` to disable |
 | `POLY_HAVEN_API_URL` | `https://api.polyhaven.com` | Poly Haven public API (Plan10) |
 | `POLY_HAVEN_CACHE_DIR` | `data/poly_haven_cache` | Local glb/hdri cache (Plan10) |
 | `MESH_PIPELINE_STRATEGY` | `openai_assisted` | `openai_assisted` / `local_fallback` / `local_only` (Plan10) |

@@ -21,6 +21,7 @@ import httpx
 from api.adapters.base import ProviderUnavailable
 from api.adapters.shap_e_client import ShapEClient
 from api.adapters.triposr_client import TripoSRClient
+from api.reference_vision import analyze_reference_image, crop_to_object
 from orchestrator.schemas.mesh_asset import BBox3, MeshAsset
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,13 @@ class TextTo3DAdapter:
         )
 
     async def _triposr_from_image(self, image_bytes: bytes, subject: str) -> TextTo3DResult:
+        # Isolate the single main product first: a raw reference (e.g. a hand
+        # holding a bottle) would otherwise be reconstructed whole. The vision
+        # pass returns a bbox we crop to; TripoSR's rembg cleans residual
+        # background inside the crop. Cached per image (shared with the route's
+        # caption call). No key / no bbox → passthrough = today's behavior.
+        analysis = analyze_reference_image(image_bytes, self._openai_api_key, hint=subject)
+        image_bytes = crop_to_object(image_bytes, analysis.bbox_norm)
         glb, bounds = await self._triposr.generate(image_bytes, filename=f"{_slug(subject)}.png")
         return TextTo3DResult(glb_bytes=glb, bounds=bounds, source="triposr")
 
